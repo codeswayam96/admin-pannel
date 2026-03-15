@@ -1,12 +1,14 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Users, FileText, ShoppingBag, Settings,
-  BarChart2, Tag, Image, MessageSquare, ChevronRight, Zap
+  BarChart2, Tag, Image, MessageSquare, ChevronRight, Zap, LogOut
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { fetchProfile, getAuthUrl } from "@/lib/api";
 
 const navGroups = [
   {
@@ -43,10 +45,24 @@ const navGroups = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const [profile, setProfile] = useState<{ name?: string; email?: string; role?: string } | null>(null);
+
+  useEffect(() => {
+    fetchProfile().then(setProfile).catch(() => {});
+  }, []);
 
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/";
     return pathname.startsWith(href);
+  };
+
+  const displayName = profile?.name || profile?.email?.split("@")[0] || "Admin";
+  const displayEmail = profile?.email || "";
+  const initials = displayName.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2) || "A";
+
+  const handleLogout = () => {
+    document.cookie = "Authentication=; path=/; max-age=0";
+    window.location.href = getAuthUrl("/login");
   };
 
   return (
@@ -104,12 +120,15 @@ export function Sidebar() {
       <div className="px-4 py-4 border-t border-white/10">
         <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-white/5">
           <div className="w-8 h-8 rounded-full bg-violet-500 flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
-            A
+            {initials}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-white truncate">Admin</p>
-            <p className="text-xs text-white/40 truncate">admin@codeswayam.com</p>
+            <p className="text-sm font-medium text-white truncate">{displayName}</p>
+            <p className="text-xs text-white/40 truncate">{displayEmail}</p>
           </div>
+          <button onClick={handleLogout} className="text-white/40 hover:text-white transition-colors" title="Logout">
+            <LogOut size={16} />
+          </button>
         </div>
       </div>
     </aside>

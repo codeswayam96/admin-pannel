@@ -12,8 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+import { fetchAuthSettings, updateAuthSettings } from "@/lib/api";
 
 export default function SettingsPage() {
   const [general, setGeneral] = useState({
@@ -58,9 +57,7 @@ export default function SettingsPage() {
   const [authFetching, setAuthFetching] = useState(true);
 
   useEffect(() => {
-    // Fetch current auth setting from core-api
-    fetch(`${API_URL}/auth/settings`, { credentials: "include" })
-      .then((r) => r.json())
+    fetchAuthSettings()
       .then((data) => {
         if (data?.authType) setAuthType(data.authType as "clerk" | "custom");
       })
@@ -71,16 +68,9 @@ export default function SettingsPage() {
   const saveAuthSettings = async () => {
     setAuthLoading(true);
     try {
-      const res = await fetch(`${API_URL}/admin/settings/auth`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ authType }),
-      });
-      if (!res.ok) throw new Error("Failed to save");
+      await updateAuthSettings(authType);
       toast.success(`Auth mode switched to ${authType === "clerk" ? "Clerk" : "Custom"} authentication!`);
     } catch {
-      // If backend not running yet, still show success locally
       toast.success(`Auth mode set to ${authType === "clerk" ? "Clerk" : "Custom"} (saved locally)`);
     } finally {
       setAuthLoading(false);

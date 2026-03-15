@@ -1,65 +1,77 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area
+  BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area
 } from "recharts";
-import { TrendingUp, TrendingDown, Eye, Users, MousePointerClick, Timer, ArrowUpRight } from "lucide-react";
+import { TrendingUp, Eye, Users, MousePointerClick, Timer, ArrowUpRight, Loader2 } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ErrorState } from "@/components/ErrorState";
+import { fetchAnalytics } from "@/lib/api";
 
-const trafficData = [
-  { date: "Mar 1", sessions: 2100, pageviews: 5800, users: 1800 },
-  { date: "Mar 2", sessions: 2400, pageviews: 6200, users: 2100 },
-  { date: "Mar 3", sessions: 1900, pageviews: 5100, users: 1700 },
-  { date: "Mar 4", sessions: 2800, pageviews: 7400, users: 2400 },
-  { date: "Mar 5", sessions: 3200, pageviews: 8900, users: 2900 },
-  { date: "Mar 6", sessions: 2600, pageviews: 6800, users: 2300 },
-  { date: "Mar 7", sessions: 3800, pageviews: 9600, users: 3200 },
-  { date: "Mar 8", sessions: 4200, pageviews: 11200, users: 3700 },
-  { date: "Mar 9", sessions: 3600, pageviews: 9400, users: 3100 },
-  { date: "Mar 10", sessions: 4800, pageviews: 12100, users: 4200 },
-  { date: "Mar 11", sessions: 5100, pageviews: 13400, users: 4600 },
-];
+const sourceColors: Record<string, string> = {
+  Organic: "#8b5cf6",
+  Direct: "#3b82f6",
+  Social: "#10b981",
+  Referral: "#f59e0b",
+  Email: "#ef4444",
+};
 
-const revenueData = [
-  { month: "Sep", mrr: 48000, arr: 576000, churn: 2.1 },
-  { month: "Oct", mrr: 62000, arr: 744000, churn: 1.8 },
-  { month: "Nov", mrr: 78000, arr: 936000, churn: 1.5 },
-  { month: "Dec", mrr: 94000, arr: 1128000, churn: 1.9 },
-  { month: "Jan", mrr: 118000, arr: 1416000, churn: 1.2 },
-  { month: "Feb", mrr: 148000, arr: 1776000, churn: 1.0 },
-  { month: "Mar", mrr: 183000, arr: 2196000, churn: 0.9 },
-];
-
-const sourcesData = [
-  { name: "Organic Search", value: 42, color: "#8b5cf6" },
-  { name: "Direct", value: 28, color: "#3b82f6" },
-  { name: "Social Media", value: 18, color: "#10b981" },
-  { name: "Referral", value: 8, color: "#f59e0b" },
-  { name: "Email", value: 4, color: "#ef4444" },
-];
-
-const topPages = [
-  { page: "/blog/top-10-saas-tools-2026", views: 12400, bounceRate: "32%", avgTime: "4:12" },
-  { page: "/blog/react-19-guide", views: 9870, bounceRate: "28%", avgTime: "5:34" },
-  { page: "/saas-products/analytics-pro", views: 7230, bounceRate: "41%", avgTime: "2:58" },
-  { page: "/blog/typescript-generics", views: 6540, bounceRate: "24%", avgTime: "6:20" },
-  { page: "/pricing", views: 5800, bounceRate: "65%", avgTime: "1:45" },
-  { page: "/", views: 5400, bounceRate: "55%", avgTime: "2:10" },
-];
-
-const metrics = [
-  { label: "Total Pageviews", value: "89.4K", change: "+22.3%", positive: true, icon: Eye },
-  { label: "Unique Users", value: "34.2K", change: "+18.7%", positive: true, icon: Users },
-  { label: "Avg. Click Rate", value: "3.8%", change: "+0.4%", positive: true, icon: MousePointerClick },
-  { label: "Avg. Session Time", value: "3m 24s", change: "-0:12", positive: false, icon: Timer },
-];
+interface AnalyticsData {
+  metrics: { pageviews: number; uniqueUsers: number; avgClickRate: number; avgSessionTime: string };
+  trafficOverview: { date: string; sessions: number; pageviews: number; users: number }[];
+  trafficSources: { source: string; percentage: number }[];
+  topPages: { page: string; views: number; bounceRate: number; avgTime: string }[];
+  mrrData: { month: string; revenue: number }[];
+}
 
 export default function AnalyticsPage() {
-  const [range, setRange] = useState("7d");
+  const [range, setRange] = useState("30d");
+  const [data, setData] = useState<AnalyticsData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLoading(true);
+    setError(null);
+    fetchAnalytics(range)
+      .then(setData)
+      .catch((err) => setError(err.message || "Failed to load analytics"))
+      .finally(() => setLoading(false));
+  }, [range]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return <ErrorState error={error} />;
+  }
+
+  if (!data) {
+    return <ErrorState error="Unable to load analytics data from API." />;
+  }
+
+  const metricCards = [
+    { label: "Total Pageviews", value: data.metrics.pageviews >= 1000 ? `${(data.metrics.pageviews / 1000).toFixed(1)}K` : String(data.metrics.pageviews), icon: Eye },
+    { label: "Unique Users", value: data.metrics.uniqueUsers >= 1000 ? `${(data.metrics.uniqueUsers / 1000).toFixed(1)}K` : String(data.metrics.uniqueUsers), icon: Users },
+    { label: "Avg. Click Rate", value: `${data.metrics.avgClickRate}%`, icon: MousePointerClick },
+    { label: "Avg. Session Time", value: data.metrics.avgSessionTime, icon: Timer },
+  ];
+
+  const sourcesWithColors = data.trafficSources.map(s => ({
+    ...s,
+    name: s.source,
+    value: s.percentage,
+    color: sourceColors[s.source] || `#${Math.floor(Math.random()*16777215).toString(16).padStart(6, '0')}`,
+  }));
 
   return (
     <div className="space-y-6">
@@ -84,16 +96,13 @@ export default function AnalyticsPage() {
 
       {/* Metrics */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        {metrics.map((m) => (
+        {metricCards.map((m) => (
           <Card key={m.label}>
             <CardContent className="p-5">
               <div className="flex items-start justify-between mb-3">
                 <div className="p-2 rounded-lg bg-violet-100">
                   <m.icon size={18} className="text-violet-600" />
                 </div>
-                <span className={`flex items-center gap-1 text-xs font-semibold ${m.positive ? "text-emerald-600" : "text-red-500"}`}>
-                  {m.positive ? <TrendingUp size={12} /> : <TrendingDown size={12} />} {m.change}
-                </span>
               </div>
               <p className="text-2xl font-bold">{m.value}</p>
               <p className="text-sm text-muted-foreground">{m.label}</p>
@@ -110,7 +119,7 @@ export default function AnalyticsPage() {
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={300}>
-            <AreaChart data={trafficData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+            <AreaChart data={data.trafficOverview} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
               <defs>
                 <linearGradient id="gSessions" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.25} />
@@ -138,16 +147,16 @@ export default function AnalyticsPage() {
         <Card className="xl:col-span-2">
           <CardHeader>
             <CardTitle>Monthly Recurring Revenue</CardTitle>
-            <CardDescription>MRR growth over the past 7 months</CardDescription>
+            <CardDescription>MRR growth over the past months</CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={revenueData} margin={{ top: 0, right: 5, left: -10, bottom: 0 }}>
+              <BarChart data={data.mrrData} margin={{ top: 0, right: 5, left: -10, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(220 13% 91%)" />
                 <XAxis dataKey="month" tick={{ fontSize: 12 }} />
                 <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}K`} />
                 <Tooltip formatter={(v) => [`₹${Number(v).toLocaleString()}`, "MRR"]} contentStyle={{ borderRadius: "8px", fontSize: "12px" }} />
-                <Bar dataKey="mrr" fill="#8b5cf6" radius={[4, 4, 0, 0]} name="MRR" />
+                <Bar dataKey="revenue" fill="#8b5cf6" radius={[4, 4, 0, 0]} name="MRR" />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -161,14 +170,14 @@ export default function AnalyticsPage() {
           <CardContent>
             <ResponsiveContainer width="100%" height={200}>
               <PieChart>
-                <Pie data={sourcesData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={3} dataKey="value">
-                  {sourcesData.map((entry, index) => <Cell key={index} fill={entry.color} />)}
+                <Pie data={sourcesWithColors} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={3} dataKey="value">
+                  {sourcesWithColors.map((entry, index) => <Cell key={index} fill={entry.color} />)}
                 </Pie>
                 <Tooltip formatter={(v) => [`${v}%`, ""]} contentStyle={{ borderRadius: "8px", fontSize: "12px" }} />
               </PieChart>
             </ResponsiveContainer>
             <div className="space-y-2 mt-2">
-              {sourcesData.map((s) => (
+              {sourcesWithColors.map((s) => (
                 <div key={s.name} className="flex items-center justify-between text-sm">
                   <div className="flex items-center gap-2">
                     <span className="w-2.5 h-2.5 rounded-full" style={{ background: s.color }} />
@@ -202,12 +211,14 @@ export default function AnalyticsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {topPages.map((page) => (
+              {data.topPages.map((page) => (
                 <TableRow key={page.page}>
                   <TableCell className="font-mono text-xs text-violet-600">{page.page}</TableCell>
                   <TableCell className="font-semibold">{page.views.toLocaleString()}</TableCell>
                   <TableCell>
-                    <Badge variant={parseFloat(page.bounceRate) > 50 ? "warning" : "success"}>{page.bounceRate}</Badge>
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${page.bounceRate > 50 ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}>
+                      {page.bounceRate}%
+                    </span>
                   </TableCell>
                   <TableCell className="text-muted-foreground">{page.avgTime}</TableCell>
                 </TableRow>

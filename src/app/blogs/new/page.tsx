@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { TiptapEditor } from "@/components/TiptapEditor";
 import { toast } from "sonner";
+import { createBlog } from "@/lib/api";
 
 export default function NewBlogPage() {
   const router = useRouter();
@@ -37,13 +38,26 @@ export default function NewBlogPage() {
     }));
   };
 
-  const handleSave = (publishStatus: string) => {
+  const handleSave = async (publishStatus: string) => {
     if (!form.title.trim()) {
       toast.error("Please enter a blog title");
       return;
     }
-    toast.success(publishStatus === "published" ? "Blog published successfully!" : "Draft saved!");
-    router.push("/blogs");
+    try {
+      await createBlog({
+        title: form.title,
+        slug: form.slug,
+        excerpt: form.excerpt,
+        tag: form.category || "general",
+        saas: "codeswayam",
+        content,
+        featured: publishStatus === "published" ? "yes" : "no",
+      });
+      toast.success(publishStatus === "published" ? "Blog published successfully!" : "Draft saved!");
+      router.push("/blogs");
+    } catch {
+      toast.error("Failed to save blog");
+    }
   };
 
   return (

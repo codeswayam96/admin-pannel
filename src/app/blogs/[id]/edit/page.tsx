@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Save, Eye, BookOpen } from "lucide-react";
+import { ArrowLeft, Save, Eye, BookOpen, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,47 +13,71 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { TiptapEditor } from "@/components/TiptapEditor";
 import { toast } from "sonner";
+import { fetchBlog, updateBlog } from "@/lib/api";
 
-// Simulating fetched blog data
-const mockBlog = {
-  id: 1,
-  title: "Top 10 SaaS Tools in 2026",
-  slug: "top-10-saas-tools-2026",
-  excerpt: "Discover the most powerful SaaS tools that are transforming businesses in 2026.",
-  category: "saas",
-  tags: "saas, tools, productivity",
-  coverImage: "",
-  status: "published",
-  metaTitle: "Top 10 SaaS Tools in 2026 | CodeSwayam",
-  metaDescription: "A complete guide to the best SaaS tools available today for scaling your business.",
-  content: "<h2>Introduction</h2><p>The SaaS landscape has grown exponentially...</p>",
-};
-
-export default function EditBlogPage({ params }: { params: { id: string } }) {
+export default function EditBlogPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
   const router = useRouter();
-  const blog = mockBlog; // In production: fetch by params.id
-  
-  const [content, setContent] = useState(blog.content);
-  const [status, setStatus] = useState(blog.status);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [content, setContent] = useState("");
+  const [featured, setFeatured] = useState("no");
   const [form, setForm] = useState({
-    title: blog.title,
-    slug: blog.slug,
-    excerpt: blog.excerpt,
-    category: blog.category,
-    tags: blog.tags,
-    coverImage: blog.coverImage,
-    metaTitle: blog.metaTitle,
-    metaDescription: blog.metaDescription,
+    title: "",
+    slug: "",
+    excerpt: "",
+    tag: "",
+    saas: "",
   });
 
-  const handleSave = (publishStatus: string) => {
+  useEffect(() => {
+    fetchBlog(Number(id))
+      .then((blog) => {
+        setForm({
+          title: blog.title || "",
+          slug: blog.slug || "",
+          excerpt: blog.excerpt || "",
+          tag: blog.tag || "",
+          saas: blog.saas || "",
+        });
+        setContent(blog.content || "");
+        setFeatured(blog.featured || "no");
+      })
+      .catch(() => toast.error("Failed to load blog"))
+      .finally(() => setLoading(false));
+  }, [id]);
+
+  const handleSave = async () => {
     if (!form.title.trim()) {
       toast.error("Please enter a blog title");
       return;
     }
-    toast.success(publishStatus === "published" ? "Blog updated and published!" : "Changes saved as draft!");
-    router.push("/blogs");
+    setSaving(true);
+    try {
+      await updateBlog(Number(id), {
+        title: form.title,
+        slug: form.slug,
+        excerpt: form.excerpt,
+        tag: form.tag,
+        saas: form.saas,
+        content,
+        featured,
+      });
+      toast.success("Blog updated successfully!");
+      router.push("/blogs");
+    } catch {
+      toast.error("Failed to update blog");
+    }
+    setSaving(false);
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -65,18 +89,15 @@ export default function EditBlogPage({ params }: { params: { id: string } }) {
           </Button>
           <div>
             <h1 className="text-2xl font-bold">Edit Blog Post</h1>
-            <p className="text-sm text-muted-foreground">ID: {params.id} — make your changes below</p>
+            <p className="text-sm text-muted-foreground">ID: {id} — make your changes below</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant={status === "published" ? "success" : "warning"} className="capitalize px-3 py-1">
-            <BookOpen size={12} className="mr-1.5" />{status}
+          <Badge variant={featured === "yes" ? "default" : "secondary"} className="capitalize px-3 py-1">
+            <BookOpen size={12} className="mr-1.5" />{featured === "yes" ? "Featured" : "Regular"}
           </Badge>
-          <Button variant="outline" size="sm" onClick={() => handleSave("draft")}>
-            <Save size={14} /> Save Draft
-          </Button>
-          <Button size="sm" onClick={() => handleSave("published")}>
-            <Eye size={14} /> Update & Publish
+          <Button size="sm" onClick={handleSave} disabled={saving}>
+            {saving ? <Loader2 size={14} className="animate-spin mr-1" /> : <Save size={14} />} Update
           </Button>
         </div>
       </div>
@@ -109,65 +130,38 @@ export default function EditBlogPage({ params }: { params: { id: string } }) {
               <TiptapEditor content={content} onChange={setContent} />
             </CardContent>
           </Card>
-
-          <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-base">SEO Settings</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>Meta Title</Label>
-                <Input value={form.metaTitle} onChange={(e) => setForm((p) => ({ ...p, metaTitle: e.target.value }))} />
-                <p className="text-xs text-muted-foreground">{form.metaTitle.length}/60</p>
-              </div>
-              <div className="space-y-2">
-                <Label>Meta Description</Label>
-                <Textarea rows={2} value={form.metaDescription} onChange={(e) => setForm((p) => ({ ...p, metaDescription: e.target.value }))} />
-                <p className="text-xs text-muted-foreground">{form.metaDescription.length}/160</p>
-              </div>
-            </CardContent>
-          </Card>
         </div>
 
         <div className="xl:col-span-1 space-y-4">
           <Card>
             <CardHeader className="pb-2"><CardTitle className="text-base">Publish</CardTitle></CardHeader>
             <CardContent className="space-y-3">
-              <Select value={status} onValueChange={setStatus}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="draft">Draft</SelectItem>
-                  <SelectItem value="published">Published</SelectItem>
-                  <SelectItem value="archived">Archived</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button className="w-full" onClick={() => handleSave(status)}>Update Post</Button>
+              <div className="space-y-1.5">
+                <Label>Featured</Label>
+                <Select value={featured} onValueChange={setFeatured}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="no">No</SelectItem>
+                    <SelectItem value="yes">Yes</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button className="w-full" onClick={handleSave} disabled={saving}>
+                {saving && <Loader2 size={14} className="mr-2 animate-spin" />}
+                Update Post
+              </Button>
             </CardContent>
           </Card>
           <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-base">Category</CardTitle></CardHeader>
+            <CardHeader className="pb-2"><CardTitle className="text-base">Tag</CardTitle></CardHeader>
             <CardContent>
-              <Select value={form.category} onValueChange={(v) => setForm((p) => ({ ...p, category: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="saas">SaaS</SelectItem>
-                  <SelectItem value="development">Development</SelectItem>
-                  <SelectItem value="frontend">Frontend</SelectItem>
-                  <SelectItem value="backend">Backend</SelectItem>
-                  <SelectItem value="ai-ml">AI/ML</SelectItem>
-                  <SelectItem value="devops">DevOps</SelectItem>
-                </SelectContent>
-              </Select>
+              <Input value={form.tag} onChange={(e) => setForm((p) => ({ ...p, tag: e.target.value }))} placeholder="development, saas..." />
             </CardContent>
           </Card>
           <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-base">Tags</CardTitle></CardHeader>
+            <CardHeader className="pb-2"><CardTitle className="text-base">SaaS</CardTitle></CardHeader>
             <CardContent>
-              <Input value={form.tags} onChange={(e) => setForm((p) => ({ ...p, tags: e.target.value }))} placeholder="react, nextjs..." />
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-base">Cover Image</CardTitle></CardHeader>
-            <CardContent>
-              <Input value={form.coverImage} onChange={(e) => setForm((p) => ({ ...p, coverImage: e.target.value }))} placeholder="https://..." />
+              <Input value={form.saas} onChange={(e) => setForm((p) => ({ ...p, saas: e.target.value }))} placeholder="codeswayam" />
             </CardContent>
           </Card>
         </div>
