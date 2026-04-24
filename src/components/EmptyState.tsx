@@ -1,7 +1,6 @@
 'use client';
 
 import React from 'react';
-import { motion } from 'framer-motion';
 import Link from 'next/link';
 import {
   FileText,
@@ -141,47 +140,23 @@ export function EmptyState({
   const finalActionHref = actionHref || config.actionHref;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-      className="flex flex-col items-center justify-center py-16 px-4 text-center"
-    >
+    <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
       {showIcon && (
-        <motion.div
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
-          className={`mb-6 rounded-full bg-muted p-6 ${config.color}`}
-        >
+        <div className={`mb-6 rounded-full bg-muted p-6 ${config.color}`}>
           <Icon className="h-12 w-12" />
-        </motion.div>
+        </div>
       )}
 
-      <motion.h3
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.3 }}
-        className="text-2xl font-bold text-foreground mb-2"
-      >
+      <h3 className="text-2xl font-bold text-foreground mb-2">
         {finalTitle}
-      </motion.h3>
+      </h3>
 
-      <motion.p
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.4 }}
-        className="text-muted-foreground max-w-md mb-8"
-      >
+      <p className="text-muted-foreground max-w-md mb-8">
         {finalDescription}
-      </motion.p>
+      </p>
 
       {(finalActionHref || onAction) && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
-        >
+        <div>
           {onAction ? (
             <Button onClick={onAction} size="lg">
               <Plus className="mr-2 h-4 w-4" />
@@ -195,7 +170,7 @@ export function EmptyState({
               </Link>
             </Button>
           ) : null}
-        </motion.div>
+        </div>
       )}
 
       {/* Decorative elements */}
@@ -203,6 +178,6 @@ export function EmptyState({
         <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-primary/5 rounded-full blur-3xl" />
         <div className="absolute bottom-1/4 right-1/4 w-64 h-64 bg-primary/5 rounded-full blur-3xl" />
       </div>
-    </motion.div>
+    </div>
   );
 }
