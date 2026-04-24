@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+@source "..";
+@source "../../../../packages/ui/src/**/*.{ts,tsx}";
+
+
 @theme {
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));

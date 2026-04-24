@@ -6,32 +6,25 @@
 - Environments: .env.local
 
   Creating an optimized production build ...
-✓ Compiled successfully in 30.9s
+✓ Compiled successfully in 32.6s
   Running TypeScript ...
-  Collecting page data using 7 workers ...
-  Generating static pages using 7 workers (0/14) ...
-  Generating static pages using 7 workers (3/14) 
-  Generating static pages using 7 workers (6/14) 
-  Generating static pages using 7 workers (10/14) 
-✓ Generating static pages using 7 workers (14/14) in 2.9s
-  Finalizing page optimization ...
+Failed to compile.
 
-Route (app)
-┌ ○ /
-├ ○ /_not-found
-├ ○ /analytics
-├ ○ /blogs
-├ ƒ /blogs/[id]/edit
-├ ○ /blogs/new
-├ ○ /categories
-├ ○ /comments
-├ ○ /media
-├ ○ /saas-products
-├ ○ /saas-products/analytics
-├ ○ /settings
-└ ○ /users
+./src/components/dashboard/DateRangePicker.tsx:9:26
+Type error: Cannot find module '@/components/ui/calendar' or its corresponding type declarations.
 
-
-○  (Static)   prerendered as static content
-ƒ  (Dynamic)  server-rendered on demand
-
+[0m [90m  7 |[39m [36mimport[39m { cn } [36mfrom[39m [32m'@/lib/utils'[39m[33m;[39m
+ [90m  8 |[39m [36mimport[39m { [33mButton[39m } [36mfrom[39m [32m'@/components/ui/button'[39m[33m;[39m
+[31m[1m>[22m[39m[90m  9 |[39m [36mimport[39m { [33mCalendar[39m } [36mfrom[39m [32m'@/components/ui/calendar'[39m[33m;[39m
+ [90m    |[39m                          [31m[1m^[22m[39m
+ [90m 10 |[39m [36mimport[39m {
+ [90m 11 |[39m   [33mPopover[39m[33m,[39m
+ [90m 12 |[39m   [33mPopoverContent[39m[33m,[39m[0m
+Next.js build worker exited with code: 1 and signal: null
+npm error Lifecycle script `build` failed with error:
+npm error code 1
+npm error path C:\Users\niteesh\OneDrive\Desktop\coding\codeswayam\apps\admin-panel
+npm error workspace admin-panel@0.1.0
+npm error location C:\Users\niteesh\OneDrive\Desktop\coding\codeswayam\apps\admin-panel
+npm error command failed
+npm error command C:\WINDOWS\system32\cmd.exe /d /s /c next build

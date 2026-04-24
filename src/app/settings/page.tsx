@@ -1,7 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Save, ShieldCheck, Key } from "lucide-react";
+import {
+  Save, ShieldCheck, Key, Mail, Lock, Eye, EyeOff, Send,
+  RefreshCw, CheckCircle2, Globe, Bell, Palette, Shield, Loader2, FlaskConical, Gift
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,261 +14,333 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { fetchAuthSettings, updateAuthSettings } from "@/lib/api";
+import { fetchSettings, updateSettings, testSmtp, changePassword, fetchReferralSettings, updateReferralSettings } from "@/lib/api";
+
+// ── Types ────────────────────────────────────────────────────────────────
+interface Settings {
+  // General
+  siteName: string; siteUrl: string; siteDescription: string;
+  adminEmail: string; tagline: string; language: string; timezone: string;
+  // Notifications
+  notifyNewUser: boolean; notifyNewComment: boolean; notifyNewSubscription: boolean;
+  notifyWeeklyReport: boolean; notifySecurityAlerts: boolean;
+  notifyProductUpdates: boolean; notifyMarketingEmails: boolean;
+  // Moderation
+  autoApproveComments: boolean; requireEmailVerification: boolean;
+  enableSpamFilter: boolean; maxLoginAttempts: string;
+  // Appearance
+  theme: string; accentColor: string; postsPerPage: string;
+  showAuthorBio: boolean; enableTableOfContents: boolean; enableSocialShare: boolean;
+  // SMTP
+  smtpHost: string; smtpPort: string; smtpUser: string;
+  smtpPass: string; smtpFromEmail: string; smtpFromName: string;
+}
+
+const defaults: Settings = {
+  siteName: "CodeSwayam", siteUrl: "https://codeswayam.com",
+  siteDescription: "Empowering developers with SaaS insights and coding tutorials.",
+  adminEmail: "admin@codeswayam.com", tagline: "Build. Learn. Grow.",
+  language: "en", timezone: "Asia/Kolkata",
+  notifyNewUser: true, notifyNewComment: true, notifyNewSubscription: true,
+  notifyWeeklyReport: true, notifySecurityAlerts: true,
+  notifyProductUpdates: false, notifyMarketingEmails: false,
+  autoApproveComments: false, requireEmailVerification: true,
+  enableSpamFilter: true, maxLoginAttempts: "5",
+  theme: "light", accentColor: "#8b5cf6", postsPerPage: "10",
+  showAuthorBio: true, enableTableOfContents: true, enableSocialShare: true,
+  smtpHost: "", smtpPort: "587", smtpUser: "", smtpPass: "", smtpFromEmail: "", smtpFromName: "CodeSwayam",
+};
+
+const accentPresets = ["#8b5cf6", "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#06b6d4", "#f97316"];
+
+function SectionSave({ onSave, saving, label = "Save Changes" }: { onSave: () => void; saving: boolean; label?: string }) {
+  return (
+    <div className="flex justify-end pt-2">
+      <Button onClick={onSave} disabled={saving} className="min-w-28">
+        {saving ? <><Loader2 size={14} className="mr-2 animate-spin" />Saving...</> : <><Save size={14} className="mr-2" />{label}</>}
+      </Button>
+    </div>
+  );
+}
+
+function ToggleRow({ label, desc, checked, onChange }: { label: string; desc: string; checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div className="flex items-center justify-between py-4">
+      <div>
+        <p className="text-sm font-medium">{label}</p>
+        <p className="text-xs text-muted-foreground">{desc}</p>
+      </div>
+      <Switch checked={checked} onCheckedChange={onChange} />
+    </div>
+  );
+}
 
 export default function SettingsPage() {
-  const [general, setGeneral] = useState({
-    siteName: "CodeSwayam",
-    siteUrl: "https://codeswayam.com",
-    siteDescription: "Empowering developers with SaaS insights and coding tutorials.",
-    adminEmail: "admin@codeswayam.com",
-    tagline: "Build. Learn. Grow.",
-    language: "en",
-    timezone: "Asia/Kolkata",
-  });
+  const [s, setS] = useState<Settings>(defaults);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
-  const [notifications, setNotifications] = useState({
-    newUser: true,
-    newComment: true,
-    newSubscription: true,
-    weeklyReport: true,
-    securityAlerts: true,
-    productUpdates: false,
-    marketingEmails: false,
-  });
+  // SMTP
+  const [showSmtpPass, setShowSmtpPass] = useState(false);
+  const [testEmail, setTestEmail] = useState("");
+  const [testingSmtp, setTestingSmtp] = useState(false);
 
-  const [moderation, setModeration] = useState({
-    autoApproveComments: false,
-    requireEmailVerification: true,
-    enableSpamFilter: true,
-    maxLoginAttempts: "5",
-  });
+  // Password change
+  const [pwForm, setPwForm] = useState({ current: "", next: "", confirm: "" });
+  const [showPw, setShowPw] = useState({ current: false, next: false, confirm: false });
+  const [changingPw, setChangingPw] = useState(false);
 
-  const [appearance, setAppearance] = useState({
-    theme: "light",
-    accentColor: "#8b5cf6",
-    postsPerPage: "10",
-    showAuthorBio: true,
-    enableTableOfContents: true,
-    enableSocialShare: true,
-  });
-
-  // Auth Settings
-  const [authType, setAuthType] = useState<"clerk" | "custom">("custom");
-  const [authLoading, setAuthLoading] = useState(false);
-  const [authFetching, setAuthFetching] = useState(true);
+  // Referral Settings
+  const [refSettings, setRefSettings] = useState({ referralEnabled: true, referralPointsValue: 50 });
+  const [savingRef, setSavingRef] = useState(false);
 
   useEffect(() => {
-    fetchAuthSettings()
+    fetchSettings()
       .then((data) => {
-        if (data?.authType) setAuthType(data.authType as "clerk" | "custom");
+        if (data) {
+          const safeData: any = { ...data };
+          // Ensure absolutely NO nulls overwrite defaults
+          Object.keys(defaults).forEach(k => {
+            const key = k as keyof Settings;
+            if (safeData[key] === null || safeData[key] === undefined) {
+              safeData[key] = defaults[key];
+            }
+          });
+          setS({ ...safeData, smtpPass: "" });
+        }
       })
       .catch(() => {})
-      .finally(() => setAuthFetching(false));
+      .finally(() => setLoading(false));
+
+    fetchReferralSettings().then(data => {
+      if (data) setRefSettings(data);
+    }).catch(() => {});
   }, []);
 
-  const saveAuthSettings = async () => {
-    setAuthLoading(true);
+  const upd = (key: keyof Settings, val: any) => setS(p => ({ ...p, [key]: val }));
+
+  const save = async (section: string) => {
+    setSaving(true);
     try {
-      await updateAuthSettings(authType);
-      toast.success(`Auth mode switched to ${authType === "clerk" ? "Clerk" : "Custom"} authentication!`);
-    } catch {
-      toast.success(`Auth mode set to ${authType === "clerk" ? "Clerk" : "Custom"} (saved locally)`);
+      await updateSettings({ ...s });
+      toast.success(`${section} settings saved!`);
+    } catch (err: any) {
+      toast.error(err.message || `Failed to save ${section.toLowerCase()} settings`);
     } finally {
-      setAuthLoading(false);
+      setSaving(false);
     }
   };
 
-  const save = (section: string) => toast.success(`${section} settings saved!`);
+  const saveReferrals = async () => {
+    setSavingRef(true);
+    try {
+      await updateReferralSettings(refSettings);
+      toast.success("Referral settings saved!");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save referral settings");
+    } finally {
+      setSavingRef(false);
+    }
+  };
+
+  const handleTestSmtp = async () => {
+    if (!testEmail.trim() || !testEmail.includes("@")) {
+      toast.error("Enter a valid email address to send the test to");
+      return;
+    }
+    setTestingSmtp(true);
+    try {
+      // First save SMTP config
+      await updateSettings({ ...s });
+      await testSmtp(testEmail);
+      toast.success(`Test email sent to ${testEmail}!`);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to send test email. Check your SMTP credentials.");
+    }
+    setTestingSmtp(false);
+  };
+
+  const handleChangePassword = async () => {
+    if (!pwForm.current) { toast.error("Current password is required"); return; }
+    if (pwForm.next.length < 8) { toast.error("New password must be at least 8 characters"); return; }
+    if (pwForm.next !== pwForm.confirm) { toast.error("New passwords do not match"); return; }
+    setChangingPw(true);
+    try {
+      await changePassword(pwForm.current, pwForm.next);
+      toast.success("Password changed successfully!");
+      setPwForm({ current: "", next: "", confirm: "" });
+    } catch (err: any) {
+      toast.error(err.message || "Failed to change password");
+    }
+    setChangingPw(false);
+  };
+
+  if (loading) return (
+    <div className="flex items-center justify-center h-64">
+      <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+    </div>
+  );
 
   return (
     <div className="space-y-6 max-w-4xl">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
-        <p className="text-muted-foreground mt-1">Configure your admin panel and site preferences</p>
+        <p className="text-muted-foreground mt-1">Configure your admin panel and platform preferences</p>
       </div>
 
       <Tabs defaultValue="general">
         <TabsList className="mb-6 flex-wrap h-auto gap-1">
-          <TabsTrigger value="general">General</TabsTrigger>
-          <TabsTrigger value="notifications">Notifications</TabsTrigger>
-          <TabsTrigger value="moderation">Moderation</TabsTrigger>
-          <TabsTrigger value="appearance">Appearance</TabsTrigger>
-          <TabsTrigger value="authentication" className="flex items-center gap-1.5">
-            <ShieldCheck size={14} />
-            Authentication
-          </TabsTrigger>
+          <TabsTrigger value="general" className="gap-1.5"><Globe size={13} />General</TabsTrigger>
+          <TabsTrigger value="notifications" className="gap-1.5"><Bell size={13} />Notifications</TabsTrigger>
+          <TabsTrigger value="moderation" className="gap-1.5"><Shield size={13} />Moderation</TabsTrigger>
+          <TabsTrigger value="appearance" className="gap-1.5"><Palette size={13} />Appearance</TabsTrigger>
+          <TabsTrigger value="email" className="gap-1.5"><Mail size={13} />Email & SMTP</TabsTrigger>
+          <TabsTrigger value="security" className="gap-1.5"><Lock size={13} />Security</TabsTrigger>
+          <TabsTrigger value="authentication" className="gap-1.5"><ShieldCheck size={13} />Auth</TabsTrigger>
+          <TabsTrigger value="referrals" className="gap-1.5"><Gift size={13} />Referrals</TabsTrigger>
         </TabsList>
 
-        {/* General */}
-        <TabsContent value="general" className="space-y-6">
+        {/* ── General ─────────────────────────────────────────────────── */}
+        <TabsContent value="general" className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle>Site Information</CardTitle>
-              <CardDescription>Basic settings for your website</CardDescription>
+              <CardDescription>Basic settings for your website and platform</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label>Site Name</Label>
-                  <Input value={general.siteName} onChange={(e) => setGeneral(p => ({ ...p, siteName: e.target.value }))} />
+                  <Input value={s.siteName || ""} onChange={(e) => upd("siteName", e.target.value)} placeholder="CodeSwayam" />
                 </div>
                 <div className="space-y-1.5">
                   <Label>Site URL</Label>
-                  <Input value={general.siteUrl} onChange={(e) => setGeneral(p => ({ ...p, siteUrl: e.target.value }))} />
+                  <Input value={s.siteUrl || ""} onChange={(e) => upd("siteUrl", e.target.value)} placeholder="https://codeswayam.com" />
                 </div>
               </div>
               <div className="space-y-1.5">
                 <Label>Tagline</Label>
-                <Input value={general.tagline} onChange={(e) => setGeneral(p => ({ ...p, tagline: e.target.value }))} />
+                <Input value={s.tagline || ""} onChange={(e) => upd("tagline", e.target.value)} placeholder="Build. Learn. Grow." />
               </div>
               <div className="space-y-1.5">
                 <Label>Site Description</Label>
-                <Textarea rows={2} value={general.siteDescription} onChange={(e) => setGeneral(p => ({ ...p, siteDescription: e.target.value }))} />
+                <Textarea rows={2} value={s.siteDescription || ""} onChange={(e) => upd("siteDescription", e.target.value)} placeholder="Describe your platform..." />
+                <p className="text-xs text-muted-foreground">Used for SEO meta description</p>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label>Admin Email</Label>
-                  <Input type="email" value={general.adminEmail} onChange={(e) => setGeneral(p => ({ ...p, adminEmail: e.target.value }))} />
+                  <Input type="email" value={s.adminEmail || ""} onChange={(e) => upd("adminEmail", e.target.value)} placeholder="admin@example.com" />
                 </div>
                 <div className="space-y-1.5">
                   <Label>Language</Label>
-                  <Select value={general.language} onValueChange={(v) => setGeneral(p => ({ ...p, language: v }))}>
+                  <Select value={s.language} onValueChange={(v) => upd("language", v)}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="en">English</SelectItem>
-                      <SelectItem value="hi">Hindi</SelectItem>
-                      <SelectItem value="ta">Tamil</SelectItem>
-                      <SelectItem value="te">Telugu</SelectItem>
+                      <SelectItem value="en">🇬🇧 English</SelectItem>
+                      <SelectItem value="hi">🇮🇳 Hindi</SelectItem>
+                      <SelectItem value="ta">🇮🇳 Tamil</SelectItem>
+                      <SelectItem value="te">🇮🇳 Telugu</SelectItem>
+                      <SelectItem value="mr">🇮🇳 Marathi</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
               <div className="space-y-1.5">
                 <Label>Timezone</Label>
-                <Select value={general.timezone} onValueChange={(v) => setGeneral(p => ({ ...p, timezone: v }))}>
+                <Select value={s.timezone} onValueChange={(v) => upd("timezone", v)}>
                   <SelectTrigger className="max-w-sm"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Asia/Kolkata">Asia/Kolkata (IST)</SelectItem>
-                    <SelectItem value="UTC">UTC</SelectItem>
-                    <SelectItem value="America/New_York">America/New_York (EST)</SelectItem>
+                    <SelectItem value="Asia/Kolkata">Asia/Kolkata (IST +5:30)</SelectItem>
+                    <SelectItem value="UTC">UTC +0:00</SelectItem>
+                    <SelectItem value="America/New_York">America/New_York (EST -5:00)</SelectItem>
+                    <SelectItem value="America/Los_Angeles">America/Los_Angeles (PST -8:00)</SelectItem>
                     <SelectItem value="Europe/London">Europe/London (GMT)</SelectItem>
+                    <SelectItem value="Europe/Paris">Europe/Paris (CET +1:00)</SelectItem>
+                    <SelectItem value="Asia/Singapore">Asia/Singapore (SGT +8:00)</SelectItem>
+                    <SelectItem value="Asia/Tokyo">Asia/Tokyo (JST +9:00)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-              <div className="flex justify-end pt-2">
-                <Button onClick={() => save("General")}><Save size={14} /> Save Changes</Button>
-              </div>
+              <SectionSave onSave={() => save("General")} saving={saving} />
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* Notifications */}
+        {/* ── Notifications ─────────────────────────────────────────────── */}
         <TabsContent value="notifications" className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle>Email Notifications</CardTitle>
-              <CardDescription>Choose which emails you want to receive</CardDescription>
+              <CardDescription>Choose which events trigger an email to your admin address</CardDescription>
             </CardHeader>
             <CardContent className="space-y-0 divide-y">
-              {(Object.entries(notifications) as [string, boolean][]).map(([key, value]) => {
-                const labels: Record<string, { label: string; desc: string }> = {
-                  newUser: { label: "New User Registration", desc: "Get notified when a new user signs up" },
-                  newComment: { label: "New Comment", desc: "Alerts for new blog comments" },
-                  newSubscription: { label: "New Subscription", desc: "When someone subscribes to a product" },
-                  weeklyReport: { label: "Weekly Report", desc: "Summary of site activity every Monday" },
-                  securityAlerts: { label: "Security Alerts", desc: "Login attempts and suspicious activity" },
-                  productUpdates: { label: "Product Updates", desc: "Updates about CodeSwayam products" },
-                  marketingEmails: { label: "Marketing Emails", desc: "Newsletters and promotional content" },
-                };
-                const item = labels[key];
-                return (
-                  <div key={key} className="flex items-center justify-between py-4">
-                    <div>
-                      <p className="text-sm font-medium">{item.label}</p>
-                      <p className="text-xs text-muted-foreground">{item.desc}</p>
-                    </div>
-                    <Switch checked={value} onCheckedChange={(v) => setNotifications(p => ({ ...p, [key]: v }))} />
-                  </div>
-                );
-              })}
+              <ToggleRow label="New User Registration" desc="Notify when a new user signs up" checked={s.notifyNewUser} onChange={(v) => upd("notifyNewUser", v)} />
+              <ToggleRow label="New Comment" desc="Alerts for new blog comments awaiting moderation" checked={s.notifyNewComment} onChange={(v) => upd("notifyNewComment", v)} />
+              <ToggleRow label="New Subscription" desc="When someone subscribes to one of your products" checked={s.notifyNewSubscription} onChange={(v) => upd("notifyNewSubscription", v)} />
+              <ToggleRow label="Weekly Activity Report" desc="Summary of site activity sent every Monday" checked={s.notifyWeeklyReport} onChange={(v) => upd("notifyWeeklyReport", v)} />
+              <ToggleRow label="Security Alerts" desc="Failed login attempts and suspicious activity" checked={s.notifySecurityAlerts} onChange={(v) => upd("notifySecurityAlerts", v)} />
+              <ToggleRow label="Product Updates" desc="Updates about CodeSwayam platform features" checked={s.notifyProductUpdates} onChange={(v) => upd("notifyProductUpdates", v)} />
+              <ToggleRow label="Marketing Emails" desc="Newsletters and promotional content" checked={s.notifyMarketingEmails} onChange={(v) => upd("notifyMarketingEmails", v)} />
             </CardContent>
           </Card>
-          <div className="flex justify-end">
-            <Button onClick={() => save("Notification")}><Save size={14} /> Save</Button>
-          </div>
+          <SectionSave onSave={() => save("Notification")} saving={saving} />
         </TabsContent>
 
-        {/* Moderation */}
+        {/* ── Moderation ───────────────────────────────────────────────── */}
         <TabsContent value="moderation" className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle>Content Moderation</CardTitle>
-              <CardDescription>Control how comments and users are handled</CardDescription>
+              <CardDescription>Control how comments and user actions are handled</CardDescription>
             </CardHeader>
             <CardContent className="space-y-0 divide-y">
-              <div className="flex items-center justify-between py-4">
-                <div>
-                  <p className="text-sm font-medium">Auto-approve Comments</p>
-                  <p className="text-xs text-muted-foreground">Skip manual review for all new comments</p>
-                </div>
-                <Switch checked={moderation.autoApproveComments} onCheckedChange={(v) => setModeration(p => ({ ...p, autoApproveComments: v }))} />
-              </div>
-              <div className="flex items-center justify-between py-4">
-                <div>
-                  <p className="text-sm font-medium">Require Email Verification</p>
-                  <p className="text-xs text-muted-foreground">Users must verify their email before commenting</p>
-                </div>
-                <Switch checked={moderation.requireEmailVerification} onCheckedChange={(v) => setModeration(p => ({ ...p, requireEmailVerification: v }))} />
-              </div>
-              <div className="flex items-center justify-between py-4">
-                <div>
-                  <p className="text-sm font-medium">Enable Spam Filter</p>
-                  <p className="text-xs text-muted-foreground">Automatically detect and block spam comments</p>
-                </div>
-                <Switch checked={moderation.enableSpamFilter} onCheckedChange={(v) => setModeration(p => ({ ...p, enableSpamFilter: v }))} />
-              </div>
+              <ToggleRow label="Auto-approve Comments" desc="Skip manual review and auto-publish new comments" checked={s.autoApproveComments} onChange={(v) => upd("autoApproveComments", v)} />
+              <ToggleRow label="Require Email Verification" desc="Users must verify email before they can comment or access content" checked={s.requireEmailVerification} onChange={(v) => upd("requireEmailVerification", v)} />
+              <ToggleRow label="Enable Spam Filter" desc="Automatically detect and block spam comments using Akismet-style heuristics" checked={s.enableSpamFilter} onChange={(v) => upd("enableSpamFilter", v)} />
               <div className="py-4">
                 <Label>Max Login Attempts</Label>
-                <p className="text-xs text-muted-foreground mb-2">Lock account after this many failed attempts</p>
-                <Select value={moderation.maxLoginAttempts} onValueChange={(v) => setModeration(p => ({ ...p, maxLoginAttempts: v }))}>
+                <p className="text-xs text-muted-foreground mb-3">Lock user account after this many failed login attempts in a session</p>
+                <Select value={s.maxLoginAttempts} onValueChange={(v) => upd("maxLoginAttempts", v)}>
                   <SelectTrigger className="max-w-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {["3", "5", "10", "unlimited"].map(v => <SelectItem key={v} value={v}>{v === "unlimited" ? "Unlimited" : `${v} attempts`}</SelectItem>)}
+                    <SelectItem value="3">3 attempts</SelectItem>
+                    <SelectItem value="5">5 attempts</SelectItem>
+                    <SelectItem value="10">10 attempts</SelectItem>
+                    <SelectItem value="unlimited">Unlimited (not recommended)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </CardContent>
           </Card>
-          <div className="flex justify-end">
-            <Button onClick={() => save("Moderation")}><Save size={14} /> Save</Button>
-          </div>
+          <SectionSave onSave={() => save("Moderation")} saving={saving} />
         </TabsContent>
 
-        {/* Appearance */}
+        {/* ── Appearance ──────────────────────────────────────────────── */}
         <TabsContent value="appearance" className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle>Display Settings</CardTitle>
               <CardDescription>Customize how your site looks and feels</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-5">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <Label>Theme</Label>
-                  <Select value={appearance.theme} onValueChange={(v) => setAppearance(p => ({ ...p, theme: v }))}>
+                  <Label>Admin Theme</Label>
+                  <Select value={s.theme} onValueChange={(v) => upd("theme", v)}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="light">Light</SelectItem>
-                      <SelectItem value="dark">Dark</SelectItem>
-                      <SelectItem value="system">System</SelectItem>
+                      <SelectItem value="light">☀️ Light</SelectItem>
+                      <SelectItem value="dark">🌙 Dark</SelectItem>
+                      <SelectItem value="system">💻 System</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-1.5">
                   <Label>Posts Per Page</Label>
-                  <Select value={appearance.postsPerPage} onValueChange={(v) => setAppearance(p => ({ ...p, postsPerPage: v }))}>
+                  <Select value={s.postsPerPage} onValueChange={(v) => upd("postsPerPage", v)}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {["5", "10", "20", "50"].map(v => <SelectItem key={v} value={v}>{v} posts</SelectItem>)}
@@ -273,39 +348,233 @@ export default function SettingsPage() {
                   </Select>
                 </div>
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label>Accent Color</Label>
-                <div className="flex items-center gap-3">
-                  <input type="color" value={appearance.accentColor} onChange={(e) => setAppearance(p => ({ ...p, accentColor: e.target.value }))} className="w-10 h-9 border rounded-md cursor-pointer" />
-                  <Badge style={{ background: appearance.accentColor }} className="text-white border-none">{appearance.accentColor}</Badge>
+                <p className="text-xs text-muted-foreground">Choose your brand's primary color used across buttons and highlights</p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {accentPresets.map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => upd("accentColor", c)}
+                      className={`w-8 h-8 rounded-full border-2 transition-all ${s.accentColor === c ? "border-foreground scale-110" : "border-transparent hover:scale-105"}`}
+                      style={{ background: c }}
+                      title={c}
+                    />
+                  ))}
+                  <input
+                    type="color"
+                    value={s.accentColor || "#8b5cf6"}
+                    onChange={(e) => upd("accentColor", e.target.value)}
+                    className="w-8 h-8 rounded-full cursor-pointer border border-border bg-transparent"
+                    title="Custom color"
+                  />
+                  <Badge style={{ background: s.accentColor }} className="text-white border-none text-xs">{s.accentColor}</Badge>
                 </div>
               </div>
+              <Separator />
               <div className="space-y-0 divide-y">
-                {[
-                  { key: "showAuthorBio", label: "Show Author Bio", desc: "Display author information below posts" },
-                  { key: "enableTableOfContents", label: "Table of Contents", desc: "Auto-generate TOC for long posts" },
-                  { key: "enableSocialShare", label: "Social Share Buttons", desc: "Add share buttons to blog posts" },
-                ].map(item => (
-                  <div key={item.key} className="flex items-center justify-between py-3">
-                    <div>
-                      <p className="text-sm font-medium">{item.label}</p>
-                      <p className="text-xs text-muted-foreground">{item.desc}</p>
-                    </div>
-                    <Switch
-                      checked={appearance[item.key as keyof typeof appearance] as boolean}
-                      onCheckedChange={(v) => setAppearance(p => ({ ...p, [item.key]: v }))}
-                    />
-                  </div>
-                ))}
+                <ToggleRow label="Show Author Bio" desc="Display author card and biography below blog posts" checked={s.showAuthorBio} onChange={(v) => upd("showAuthorBio", v)} />
+                <ToggleRow label="Table of Contents" desc="Automatically generate TOC for long articles" checked={s.enableTableOfContents} onChange={(v) => upd("enableTableOfContents", v)} />
+                <ToggleRow label="Social Share Buttons" desc="Add share buttons (Twitter, LinkedIn, WhatsApp) to blog posts" checked={s.enableSocialShare} onChange={(v) => upd("enableSocialShare", v)} />
               </div>
             </CardContent>
           </Card>
-          <div className="flex justify-end">
-            <Button onClick={() => save("Appearance")}><Save size={14} /> Save</Button>
-          </div>
+          <SectionSave onSave={() => save("Appearance")} saving={saving} />
         </TabsContent>
 
-        {/* Authentication */}
+        {/* ── Email & SMTP ─────────────────────────────────────────────── */}
+        <TabsContent value="email" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Mail size={18} className="text-primary" />
+                SMTP Configuration
+              </CardTitle>
+              <CardDescription>
+                Configure your outgoing email server. Used for invites, notifications, and verification emails.
+                Supports Gmail, Postmark, SendGrid, Mailgun, or any SMTP provider.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label>SMTP Host</Label>
+                  <Input placeholder="smtp.gmail.com" value={s.smtpHost || ""} onChange={(e) => upd("smtpHost", e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>SMTP Port</Label>
+                  <Select value={s.smtpPort} onValueChange={(v) => upd("smtpPort", v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="25">25 (SMTP)</SelectItem>
+                      <SelectItem value="465">465 (SMTPS / SSL)</SelectItem>
+                      <SelectItem value="587">587 (STARTTLS — recommended)</SelectItem>
+                      <SelectItem value="2525">2525 (Alternative)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label>SMTP Username</Label>
+                  <Input placeholder="you@gmail.com" value={s.smtpUser || ""} onChange={(e) => upd("smtpUser", e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>SMTP Password / App Password</Label>
+                  <div className="relative">
+                    <Input
+                      type={showSmtpPass ? "text" : "password"}
+                      placeholder="Leave blank to keep existing"
+                      value={s.smtpPass || ""}
+                      onChange={(e) => upd("smtpPass", e.target.value)}
+                      className="pr-10"
+                    />
+                    <button type="button" onClick={() => setShowSmtpPass(p => !p)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                      {showSmtpPass ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label>From Email</Label>
+                  <Input placeholder="noreply@codeswayam.com" value={s.smtpFromEmail || ""} onChange={(e) => upd("smtpFromEmail", e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>From Name</Label>
+                  <Input placeholder="CodeSwayam" value={s.smtpFromName || ""} onChange={(e) => upd("smtpFromName", e.target.value)} />
+                </div>
+              </div>
+
+              {/* Quick-fill presets */}
+              <div className="rounded-lg border border-violet-200 bg-violet-50 dark:border-violet-500/20 dark:bg-violet-500/10 p-4">
+                <p className="text-xs font-semibold text-violet-700 dark:text-violet-400 mb-2">⚡ Quick Fill — Common Providers</p>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { label: "Gmail",    host: "smtp.gmail.com",        port: "587" },
+                    { label: "Postmark", host: "smtp.postmarkapp.com",  port: "587" },
+                    { label: "SendGrid", host: "smtp.sendgrid.net",     port: "587" },
+                    { label: "Mailgun",  host: "smtp.mailgun.org",      port: "587" },
+                    { label: "Zoho",     host: "smtp.zoho.com",         port: "465" },
+                  ].map((preset) => (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() => setS(p => ({ ...p, smtpHost: preset.host, smtpPort: preset.port }))}
+                      className="px-2.5 py-1 text-xs bg-white dark:bg-violet-900 border border-violet-200 dark:border-violet-800 rounded-md text-violet-700 dark:text-violet-100 hover:bg-violet-100 dark:hover:bg-violet-800 transition-colors"
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <SectionSave onSave={() => save("SMTP")} saving={saving} label="Save SMTP Config" />
+
+              <Separator />
+
+              {/* Test email */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1.5"><FlaskConical size={14} /> Send Test Email</Label>
+                <p className="text-xs text-muted-foreground">Verify your SMTP config by sending a test email. Config will be saved first.</p>
+                <div className="flex gap-2">
+                  <Input
+                    type="email"
+                    placeholder="your@email.com"
+                    value={testEmail}
+                    onChange={(e) => setTestEmail(e.target.value)}
+                    className="max-w-sm"
+                    onKeyDown={(e) => e.key === "Enter" && handleTestSmtp()}
+                  />
+                  <Button variant="outline" onClick={handleTestSmtp} disabled={testingSmtp}>
+                    {testingSmtp ? <><Loader2 size={14} className="mr-2 animate-spin" />Sending...</> : <><Send size={14} className="mr-2" />Send Test</>}
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ── Security ─────────────────────────────────────────────────── */}
+        <TabsContent value="security" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Lock size={18} className="text-primary" />
+                Change Admin Password
+              </CardTitle>
+              <CardDescription>Update your admin account password. Minimum 8 characters.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 max-w-sm">
+              {(["current", "next", "confirm"] as const).map((field) => {
+                const labels = { current: "Current Password", next: "New Password", confirm: "Confirm New Password" };
+                return (
+                  <div key={field} className="space-y-1.5">
+                    <Label>{labels[field]}</Label>
+                    <div className="relative">
+                      <Input
+                        type={showPw[field] ? "text" : "password"}
+                        value={pwForm[field]}
+                        onChange={(e) => setPwForm(p => ({ ...p, [field]: e.target.value }))}
+                        placeholder={field === "current" ? "Your current password" : "••••••••"}
+                        className="pr-10"
+                        onKeyDown={(e) => e.key === "Enter" && handleChangePassword()}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPw(p => ({ ...p, [field]: !p[field] }))}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        {showPw[field] ? <EyeOff size={15} /> : <Eye size={15} />}
+                      </button>
+                    </div>
+                    {field === "next" && pwForm.next.length > 0 && pwForm.next.length < 8 && (
+                      <p className="text-xs text-red-500">Must be at least 8 characters</p>
+                    )}
+                    {field === "confirm" && pwForm.confirm && pwForm.next !== pwForm.confirm && (
+                      <p className="text-xs text-red-500">Passwords do not match</p>
+                    )}
+                  </div>
+                );
+              })}
+              {pwForm.next.length >= 8 && pwForm.next === pwForm.confirm && (
+                <div className="flex items-center gap-1.5 text-xs text-emerald-600">
+                  <CheckCircle2 size={13} /> Passwords match
+                </div>
+              )}
+              <Button
+                onClick={handleChangePassword}
+                disabled={changingPw || !pwForm.current || pwForm.next.length < 8 || pwForm.next !== pwForm.confirm}
+                className="w-full"
+              >
+                {changingPw ? <><Loader2 size={14} className="mr-2 animate-spin" />Updating...</> : <><Lock size={14} className="mr-2" />Update Password</>}
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Session & Security Info</CardTitle>
+              <CardDescription>Current authentication and session configuration</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {[
+                { label: "Auth Mode", value: "Custom Auth (Email + Password + Google OAuth)", color: "text-emerald-600" },
+                { label: "Password Hashing", value: "bcryptjs (PBKDF2-like, 10 rounds)", color: "text-blue-600" },
+                { label: "Session Type", value: "HttpOnly cookie with JWT", color: "text-violet-600" },
+                { label: "Login Lockout", value: `After ${s.maxLoginAttempts === "unlimited" ? "unlimited" : s.maxLoginAttempts} failed attempts`, color: "text-amber-600" },
+              ].map(item => (
+                <div key={item.label} className="flex items-center justify-between py-2 border-b border-border/50 last:border-0">
+                  <span className="text-sm text-muted-foreground">{item.label}</span>
+                  <span className={`text-sm font-medium ${item.color}`}>{item.value}</span>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ── Authentication ───────────────────────────────────────────── */}
         <TabsContent value="authentication" className="space-y-4">
           <Card>
             <CardHeader>
@@ -314,91 +583,95 @@ export default function SettingsPage() {
                 Authentication Mode
               </CardTitle>
               <CardDescription>
-                Choose which authentication system handles user login and signup across all CodeSwayam apps.
+                Controls how users sign up and log in across all CodeSwayam apps. Currently locked to Custom Auth
+                after Clerk was removed. Future providers can be added here.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
-              {authFetching ? (
-                <p className="text-sm text-muted-foreground">Loading current auth settings…</p>
-              ) : (
-                <>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {/* Custom Auth Option */}
-                    <button
-                      type="button"
-                      onClick={() => setAuthType("custom")}
-                      className={`p-5 rounded-xl border-2 text-left transition-all ${
-                        authType === "custom"
-                          ? "border-primary bg-primary/5"
-                          : "border-border hover:border-primary/40 hover:bg-muted/50"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center">
-                          <Key size={18} className="text-emerald-700" />
-                        </div>
-                        {authType === "custom" && <Badge variant="success">Active</Badge>}
-                      </div>
-                      <h3 className="font-semibold text-sm mb-1">Custom Auth</h3>
-                      <p className="text-xs text-muted-foreground leading-relaxed">
-                        Use your own login system. Passwords stored in your database. No external limits or costs.
-                      </p>
-                      <div className="mt-3 flex flex-wrap gap-1">
-                        <Badge variant="outline" className="text-[10px]">Google OAuth</Badge>
-                        <Badge variant="outline" className="text-[10px]">Email/Password</Badge>
-                        <Badge variant="outline" className="text-[10px]">Plain Passwords</Badge>
-                      </div>
-                    </button>
-
-                    {/* Clerk Auth Option */}
-                    <button
-                      type="button"
-                      onClick={() => setAuthType("clerk")}
-                      className={`p-5 rounded-xl border-2 text-left transition-all ${
-                        authType === "clerk"
-                          ? "border-primary bg-primary/5"
-                          : "border-border hover:border-primary/40 hover:bg-muted/50"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center">
-                          <ShieldCheck size={18} className="text-purple-700" />
-                        </div>
-                        {authType === "clerk" && <Badge variant="success">Active</Badge>}
-                      </div>
-                      <h3 className="font-semibold text-sm mb-1">Clerk Auth</h3>
-                      <p className="text-xs text-muted-foreground leading-relaxed">
-                        Use Clerk for authentication. Managed auth with UI components. User data synced to your DB.
-                      </p>
-                      <div className="mt-3 flex flex-wrap gap-1">
-                        <Badge variant="outline" className="text-[10px]">Clerk UI</Badge>
-                        <Badge variant="outline" className="text-[10px]">Auto Sync</Badge>
-                        <Badge variant="outline" className="text-[10px]">Managed</Badge>
-                      </div>
-                    </button>
+            <CardContent className="space-y-4">
+              {/* Active: Custom Auth */}
+              <div className="p-5 rounded-xl border-2 border-primary bg-primary/5">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="w-10 h-10 rounded-lg bg-emerald-100 dark:bg-emerald-950 flex items-center justify-center">
+                    <Key size={18} className="text-emerald-700 dark:text-emerald-400" />
                   </div>
+                  <Badge variant="success">Active</Badge>
+                </div>
+                <h3 className="font-semibold text-sm mb-1">Custom Auth (Your Own System)</h3>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Email + password stored in your PostgreSQL database with bcryptjs hashing. Google OAuth also supported. 
+                  JWT tokens are issued as HttpOnly cookies. No third-party auth dependency.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-1">
+                  <Badge variant="outline" className="text-[10px]">✓ Google OAuth</Badge>
+                  <Badge variant="outline" className="text-[10px]">✓ Email/Password</Badge>
+                  <Badge variant="outline" className="text-[10px]">✓ HttpOnly JWT</Badge>
+                  <Badge variant="outline" className="text-[10px]">✓ Email Verification</Badge>
+                  <Badge variant="outline" className="text-[10px]">✓ Password Reset</Badge>
+                </div>
+              </div>
 
-                  <div className="rounded-lg bg-amber-50 border border-amber-200 p-4 text-sm text-amber-800">
-                    <strong>Note:</strong> Switching auth modes affects all CodeSwayam apps. Users will need to log in again after switching.
+              {/* Coming soon providers */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {[
+                  { name: "Magic Link Auth", desc: "Passwordless login via one-time email links", icon: "✉️" },
+                  { name: "OTP / Phone Auth", desc: "SMS-based authentication with Twilio/AWS SNS", icon: "📱" },
+                  { name: "SSO / SAML", desc: "Enterprise single sign-on integration", icon: "🏢" },
+                  { name: "Passkeys (WebAuthn)", desc: "Biometric and hardware key authentication", icon: "🔐" },
+                ].map((provider) => (
+                  <div key={provider.name} className="p-4 rounded-xl border border-dashed border-border bg-muted/30 flex items-start gap-3 opacity-60">
+                    <span className="text-xl">{provider.icon}</span>
+                    <div>
+                      <p className="text-sm font-medium">{provider.name}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{provider.desc}</p>
+                      <Badge variant="outline" className="text-[10px] mt-2">Coming Soon</Badge>
+                    </div>
                   </div>
+                ))}
+              </div>
 
-                  <div className="flex justify-end">
-                    <Button onClick={saveAuthSettings} disabled={authLoading}>
-                      {authLoading ? (
-                        <span className="flex items-center gap-2">
-                          <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                          </svg>
-                          Saving...
-                        </span>
-                      ) : (
-                        <><Save size={14} /> Save Auth Mode</>
-                      )}
-                    </Button>
-                  </div>
-                </>
-              )}
+              <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-500/20 dark:bg-amber-500/10 p-4">
+                <p className="text-xs text-amber-700 dark:text-amber-400">
+                  <strong>Note:</strong> Auth changes affect all users immediately. Test in staging before switching providers.
+                  Contact support to enable enterprise auth options.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ── Referrals ────────────────────────────────────────────────── */}
+        <TabsContent value="referrals" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Gift size={18} className="text-primary" />
+                Referral Program Settings
+              </CardTitle>
+              <CardDescription>
+                Configure the reward points and toggle the referral system.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <ToggleRow 
+                label="Enable Referral Program" 
+                desc="Allow users to generate and share referral codes, and earn points when new users sign up with them." 
+                checked={refSettings.referralEnabled} 
+                onChange={(v) => setRefSettings(p => ({ ...p, referralEnabled: v }))} 
+              />
+              <Separator />
+              <div className="space-y-1.5 pt-2 max-w-sm">
+                <Label>Reward Points per Referral</Label>
+                <div className="flex gap-2">
+                  <Input 
+                    type="number" 
+                    min="0"
+                    value={refSettings.referralPointsValue} 
+                    onChange={(e) => setRefSettings(p => ({ ...p, referralPointsValue: parseInt(e.target.value) || 0 }))} 
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">Both the referrer and the new user will receive this many points.</p>
+              </div>
+              <SectionSave onSave={saveReferrals} saving={savingRef} label="Save Referral Settings" />
             </CardContent>
           </Card>
         </TabsContent>

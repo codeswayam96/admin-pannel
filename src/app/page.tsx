@@ -71,8 +71,8 @@ export default function DashboardPage() {
         change: `${data.stats.usersTrend >= 0 ? "+" : ""}${data.stats.usersTrend}%`,
         positive: data.stats.usersTrend >= 0,
         icon: Users,
-        color: "text-violet-600",
-        bg: "bg-violet-100",
+        color: "text-violet-600 dark:text-violet-400",
+        bg: "bg-violet-100 dark:bg-violet-500/20",
         description: "from last month",
       },
       {
@@ -81,8 +81,8 @@ export default function DashboardPage() {
         change: `${data.stats.revenueTrend >= 0 ? "+" : ""}${data.stats.revenueTrend}%`,
         positive: data.stats.revenueTrend >= 0,
         icon: DollarSign,
-        color: "text-emerald-600",
-        bg: "bg-emerald-100",
+        color: "text-emerald-600 dark:text-emerald-400",
+        bg: "bg-emerald-100 dark:bg-emerald-500/20",
         description: "from last month",
       },
       {
@@ -91,8 +91,8 @@ export default function DashboardPage() {
         change: `${data.stats.blogsTrend >= 0 ? "+" : ""}${data.stats.blogsTrend}%`,
         positive: data.stats.blogsTrend >= 0,
         icon: FileText,
-        color: "text-blue-600",
-        bg: "bg-blue-100",
+        color: "text-blue-600 dark:text-blue-400",
+        bg: "bg-blue-100 dark:bg-blue-500/20",
         description: "from last month",
       },
       {
@@ -101,8 +101,8 @@ export default function DashboardPage() {
         change: data.stats.inactiveProducts > 0 ? `~${data.stats.inactiveProducts} inactive` : "all active",
         positive: data.stats.inactiveProducts === 0,
         icon: ShoppingBag,
-        color: "text-orange-600",
-        bg: "bg-orange-100",
+        color: "text-orange-600 dark:text-orange-400",
+        bg: "bg-orange-100 dark:bg-orange-500/20",
         description: `${data.stats.inactiveProducts} need attention`,
       },
     ];

@@ -1,17 +1,20 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, MoreVertical, Shield, ShieldAlert, UserCheck, Mail, Calendar, Loader2, Users, UserCog, Eye, Bookmark, Clock } from "lucide-react";
+import { Search, MoreVertical, Shield, ShieldAlert, UserCheck, Mail, Calendar, Loader2, Users, UserPlus, Clock, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { ErrorState } from "@/components/ErrorState";
-import { fetchUsers, updateUserRole, updateUserStatus } from "@/lib/api";
+import { fetchUsers, updateUserRole, updateUserStatus, deleteUser, inviteUser } from "@/lib/api";
 
 type UserRole = "user" | "admin" | "superadmin" | "editor" | "viewer" | "subscriber";
 
@@ -41,14 +44,9 @@ const statusColors: Record<string, string> = {
 };
 
 const avatarColors = [
-  "bg-violet-100 text-violet-700",
-  "bg-blue-100 text-blue-700",
-  "bg-emerald-100 text-emerald-700",
-  "bg-amber-100 text-amber-700",
-  "bg-pink-100 text-pink-700",
-  "bg-cyan-100 text-cyan-700",
-  "bg-rose-100 text-rose-700",
-  "bg-teal-100 text-teal-700",
+  "bg-violet-100 text-violet-700", "bg-blue-100 text-blue-700", "bg-emerald-100 text-emerald-700",
+  "bg-amber-100 text-amber-700", "bg-pink-100 text-pink-700", "bg-cyan-100 text-cyan-700",
+  "bg-rose-100 text-rose-700", "bg-teal-100 text-teal-700",
 ];
 
 function getInitials(name: string | null, email: string) {
@@ -56,9 +54,7 @@ function getInitials(name: string | null, email: string) {
   return email.slice(0, 2).toUpperCase();
 }
 
-function getAvatarColor(id: number) {
-  return avatarColors[id % avatarColors.length];
-}
+function getAvatarColor(id: number) { return avatarColors[id % avatarColors.length]; }
 
 function formatLastActive(date: string | null) {
   if (!date) return "Never";
@@ -84,6 +80,12 @@ export default function UsersPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [updatingId, setUpdatingId] = useState<number | null>(null);
 
+  // Invite dialog
+  const [inviteDialog, setInviteDialog] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState("user");
+  const [inviting, setInviting] = useState(false);
+
   useEffect(() => {
     fetchUsers()
       .then(setUsers)
@@ -104,9 +106,7 @@ export default function UsersPage() {
       const updated = await updateUserRole(id, role);
       setUsers(prev => prev.map(u => u.id === id ? { ...u, role: updated.role } : u));
       toast.success("User role updated");
-    } catch {
-      toast.error("Failed to update role");
-    }
+    } catch { toast.error("Failed to update role"); }
     setUpdatingId(null);
   };
 
@@ -116,10 +116,34 @@ export default function UsersPage() {
       await updateUserStatus(id, status);
       setUsers(prev => prev.map(u => u.id === id ? { ...u, status } : u));
       toast.success(`User ${status === "active" ? "activated" : status}`);
-    } catch {
-      toast.error("Failed to update status");
-    }
+    } catch { toast.error("Failed to update status"); }
     setUpdatingId(null);
+  };
+
+  const handleDelete = async (id: number) => {
+    setUpdatingId(id);
+    try {
+      await deleteUser(id);
+      setUsers(prev => prev.filter(u => u.id !== id));
+      toast.success("User deleted");
+    } catch (err: any) { toast.error(err.message || "Failed to delete user"); }
+    setUpdatingId(null);
+  };
+
+  const handleInvite = async () => {
+    if (!inviteEmail.trim() || !inviteEmail.includes("@")) { toast.error("Valid email is required"); return; }
+    setInviting(true);
+    try {
+      await inviteUser(inviteEmail, inviteRole);
+      toast.success(`Invite sent to ${inviteEmail}! They can login with the temp password.`);
+      setInviteDialog(false);
+      setInviteEmail("");
+      setInviteRole("user");
+      // Reload users
+      const updated = await fetchUsers();
+      setUsers(updated);
+    } catch (err: any) { toast.error(err.message || "Failed to invite user"); }
+    setInviting(false);
   };
 
   const counts = {
@@ -129,23 +153,24 @@ export default function UsersPage() {
     suspended: users.filter(u => u.status === "suspended").length,
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
+  if (loading) return (
+    <div className="flex items-center justify-center h-64">
+      <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+    </div>
+  );
 
-  if (error) {
-    return <ErrorState error={error} />;
-  }
+  if (error) return <ErrorState error={error} />;
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Users</h1>
-        <p className="text-muted-foreground mt-1">Manage user accounts, roles, and status</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Users</h1>
+          <p className="text-muted-foreground mt-1">Manage user accounts, roles, and status</p>
+        </div>
+        <Button onClick={() => setInviteDialog(true)}>
+          <UserPlus size={16} /> Invite User
+        </Button>
       </div>
 
       {/* Stats */}
@@ -153,37 +178,25 @@ export default function UsersPage() {
         <Card>
           <CardContent className="p-5 flex items-start gap-4">
             <div className="p-2.5 rounded-lg bg-violet-100"><Users size={18} className="text-violet-600" /></div>
-            <div>
-              <p className="text-2xl font-bold">{counts.total}</p>
-              <p className="text-sm text-muted-foreground">Total Users</p>
-            </div>
+            <div><p className="text-2xl font-bold">{counts.total}</p><p className="text-sm text-muted-foreground">Total Users</p></div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-5 flex items-start gap-4">
             <div className="p-2.5 rounded-lg bg-emerald-100"><UserCheck size={18} className="text-emerald-600" /></div>
-            <div>
-              <p className="text-2xl font-bold">{counts.active}</p>
-              <p className="text-sm text-muted-foreground">Active</p>
-            </div>
+            <div><p className="text-2xl font-bold">{counts.active}</p><p className="text-sm text-muted-foreground">Active</p></div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-5 flex items-start gap-4">
             <div className="p-2.5 rounded-lg bg-blue-100"><Shield size={18} className="text-blue-600" /></div>
-            <div>
-              <p className="text-2xl font-bold">{counts.admins}</p>
-              <p className="text-sm text-muted-foreground">Admins</p>
-            </div>
+            <div><p className="text-2xl font-bold">{counts.admins}</p><p className="text-sm text-muted-foreground">Admins</p></div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-5 flex items-start gap-4">
             <div className="p-2.5 rounded-lg bg-red-100"><ShieldAlert size={18} className="text-red-600" /></div>
-            <div>
-              <p className="text-2xl font-bold">{counts.suspended}</p>
-              <p className="text-sm text-muted-foreground">Suspended</p>
-            </div>
+            <div><p className="text-2xl font-bold">{counts.suspended}</p><p className="text-sm text-muted-foreground">Suspended</p></div>
           </CardContent>
         </Card>
       </div>
@@ -257,26 +270,16 @@ export default function UsersPage() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${rc}`}>
-                        {user.role}
-                      </span>
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${rc}`}>{user.role}</span>
                     </TableCell>
                     <TableCell>
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${sc}`}>
-                        {user.status || "active"}
-                      </span>
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${sc}`}>{user.status || "active"}</span>
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <Clock size={12} />
-                        {formatLastActive(user.lastActiveAt)}
-                      </span>
+                      <span className="flex items-center gap-1"><Clock size={12} />{formatLastActive(user.lastActiveAt)}</span>
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <Calendar size={12} />
-                        {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "—"}
-                      </span>
+                      <span className="flex items-center gap-1"><Calendar size={12} />{user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "—"}</span>
                     </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
@@ -293,8 +296,28 @@ export default function UsersPage() {
                           <DropdownMenuSeparator />
                           <DropdownMenuLabel>Change Status</DropdownMenuLabel>
                           {(["active", "suspended", "pending"] as const).filter(s => s !== (user.status || "active")).map(s => (
-                            <DropdownMenuItem key={s} onClick={() => changeStatus(user.id, s)} className="capitalize">{s === "suspended" ? "Suspend" : s === "active" ? "Activate" : "Set Pending"}</DropdownMenuItem>
+                            <DropdownMenuItem key={s} onClick={() => changeStatus(user.id, s)} className="capitalize">
+                              {s === "suspended" ? "Suspend" : s === "active" ? "Activate" : "Set Pending"}
+                            </DropdownMenuItem>
                           ))}
+                          <DropdownMenuSeparator />
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <DropdownMenuItem className="text-destructive" onSelect={(e) => e.preventDefault()}>
+                                <Trash2 size={13} className="mr-2" /> Delete User
+                              </DropdownMenuItem>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete {user.email}?</AlertDialogTitle>
+                                <AlertDialogDescription>This will permanently delete the user and all their data. This action cannot be undone.</AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => handleDelete(user.id)}>Delete Permanently</AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
@@ -305,6 +328,45 @@ export default function UsersPage() {
           </TableBody>
         </Table>
       </Card>
+
+      {/* Invite Dialog */}
+      <Dialog open={inviteDialog} onOpenChange={setInviteDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Invite User</DialogTitle>
+            <DialogDescription>Send an invitation email with temporary login credentials. They&apos;ll be prompted to change their password on first login.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label>Email Address *</Label>
+              <Input type="email" placeholder="user@example.com" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleInvite()} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Role</Label>
+              <Select value={inviteRole} onValueChange={setInviteRole}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="user">User</SelectItem>
+                  <SelectItem value="editor">Editor</SelectItem>
+                  <SelectItem value="viewer">Viewer</SelectItem>
+                  <SelectItem value="subscriber">Subscriber</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/20 px-3 py-2.5">
+              <p className="text-xs text-amber-700 dark:text-amber-400">An email will be sent with a temporary password. Configure <code className="bg-amber-100 dark:bg-amber-900 px-1 rounded">SMTP_USER</code> in your environment for real email delivery.</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setInviteDialog(false)}>Cancel</Button>
+            <Button onClick={handleInvite} disabled={inviting}>
+              {inviting && <Loader2 size={14} className="mr-2 animate-spin" />}
+              Send Invitation
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

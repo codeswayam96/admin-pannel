@@ -5,10 +5,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Users, FileText, ShoppingBag, Settings,
-  BarChart2, Tag, Image, MessageSquare, ChevronRight, Zap, LogOut
+  BarChart2, Tag, Image, MessageSquare, ChevronRight, Zap, LogOut,
+  CreditCard, Activity, Coins, Gift, CheckCircle
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { fetchProfile, getAuthUrl } from "@/lib/api";
+import { fetchProfile, logout } from "@/lib/api";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 const navGroups = [
   {
@@ -32,12 +34,17 @@ const navGroups = [
     items: [
       { href: "/saas-products", icon: ShoppingBag, label: "SaaS Products" },
       { href: "/saas-products/analytics", icon: BarChart2, label: "Product Analytics" },
+      { href: "/subscriptions", icon: CreditCard, label: "Subscriptions" },
+      { href: "/credits", icon: Coins, label: "Credits" },
+      { href: "/rewards", icon: Gift, label: "Rewards" },
     ],
   },
   {
     label: "System",
     items: [
       { href: "/users", icon: Users, label: "Users" },
+      { href: "/approvals", icon: CheckCircle, label: "Approvals" },
+      { href: "/activity", icon: Activity, label: "Activity Log" },
       { href: "/settings", icon: Settings, label: "Settings" },
     ],
   },
@@ -60,9 +67,8 @@ export function Sidebar() {
   const displayEmail = profile?.email || "";
   const initials = displayName.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2) || "A";
 
-  const handleLogout = () => {
-    document.cookie = "Authentication=; path=/; max-age=0";
-    window.location.href = getAuthUrl("/login");
+  const handleLogout = async () => {
+    await logout();
   };
 
   return (
@@ -102,7 +108,7 @@ export function Sidebar() {
                     <item.icon
                       size={18}
                       className={cn(
-                        "flex-shrink-0 transition-colors",
+                        "shrink-0 transition-colors",
                         active ? "text-violet-400" : "text-white/40 group-hover:text-white/70"
                       )}
                     />
@@ -117,9 +123,16 @@ export function Sidebar() {
       </nav>
 
       {/* Footer */}
-      <div className="px-4 py-4 border-t border-white/10">
+      <div className="px-4 py-4 border-t border-white/10 space-y-3">
+        {/* Theme Toggle Row */}
+        <div className="flex items-center justify-between px-3">
+          <span className="text-xs text-white/60">Theme</span>
+          <ThemeToggle />
+        </div>
+
+        {/* User Profile */}
         <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-white/5">
-          <div className="w-8 h-8 rounded-full bg-violet-500 flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
+          <div className="w-8 h-8 rounded-full bg-violet-500 flex items-center justify-center text-xs font-bold text-white shrink-0">
             {initials}
           </div>
           <div className="flex-1 min-w-0">
