@@ -163,12 +163,12 @@ export default function UsersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Users</h1>
           <p className="text-muted-foreground mt-1">Manage user accounts, roles, and status</p>
         </div>
-        <Button onClick={() => setInviteDialog(true)}>
+        <Button onClick={() => setInviteDialog(true)} className="w-full sm:w-auto">
           <UserPlus size={16} /> Invite User
         </Button>
       </div>
@@ -232,6 +232,7 @@ export default function UsersPage() {
 
       {/* Table */}
       <Card className="overflow-hidden">
+        <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -327,6 +328,7 @@ export default function UsersPage() {
             )}
           </TableBody>
         </Table>
+        </div>
       </Card>
 
       {/* Invite Dialog */}

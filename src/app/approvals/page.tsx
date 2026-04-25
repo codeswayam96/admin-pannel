@@ -126,6 +126,7 @@ export default function ApprovalsPage() {
               {loading ? (
                 <div className="flex justify-center py-8"><Loader2 className="animate-spin text-violet-500" /></div>
               ) : cancellations.length > 0 ? (
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -167,6 +168,7 @@ export default function ApprovalsPage() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               ) : (
                 <div className="text-center py-12 text-muted-foreground">
                   <div className="mb-2 flex justify-center text-gray-200">
@@ -189,6 +191,7 @@ export default function ApprovalsPage() {
               {loading ? (
                 <div className="flex justify-center py-8"><Loader2 className="animate-spin text-red-500" /></div>
               ) : deletions.length > 0 ? (
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -233,6 +236,7 @@ export default function ApprovalsPage() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               ) : (
                 <div className="text-center py-12 text-muted-foreground">
                   <div className="mb-2 flex justify-center text-gray-200">

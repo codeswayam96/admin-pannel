@@ -250,7 +250,7 @@ export default function CreditsPage() {
       </div>
 
       {/* Tab Bar */}
-      <div className="flex gap-1 border-b">
+      <div className="flex gap-1 border-b overflow-x-auto">
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
             className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-t-lg border-b-2 transition-colors ${tab === t.id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
@@ -343,8 +343,8 @@ export default function CreditsPage() {
 
           {/* ────────── TAB: FEATURE COSTS ────────── */}
           {tab === "features" && (
-            <div className="border rounded-xl overflow-hidden">
-              <table className="w-full text-sm">
+            <div className="border rounded-xl overflow-x-auto">
+              <table className="w-full text-sm min-w-[700px]">
                 <thead className="bg-muted/50 border-b">
                   <tr>
                     {["SaaS ID", "Feature Key", "Feature Name", "Category", "Cost (pts)", "Visible", "Active", ""].map(h => (
@@ -405,8 +405,8 @@ export default function CreditsPage() {
 
           {/* ────────── TAB: TRANSACTIONS ────────── */}
           {tab === "transactions" && (
-            <div className="border rounded-xl overflow-hidden">
-              <table className="w-full text-sm">
+            <div className="border rounded-xl overflow-x-auto">
+              <table className="w-full text-sm min-w-[700px]">
                 <thead className="bg-muted/50 border-b">
                   <tr>
                     {["User", "Type", "Points", "Balance After", "Description", "SaaS", "Date"].map(h => (
@@ -446,8 +446,8 @@ export default function CreditsPage() {
 
           {/* ────────── TAB: USER BALANCES ────────── */}
           {tab === "users" && (
-            <div className="border rounded-xl overflow-hidden">
-              <table className="w-full text-sm">
+            <div className="border rounded-xl overflow-x-auto">
+              <table className="w-full text-sm min-w-[600px]">
                 <thead className="bg-muted/50 border-b">
                   <tr>
                     {["User", "Balance", "Lifetime Earned", "Lifetime Spent", "Last Updated", ""].map(h => (

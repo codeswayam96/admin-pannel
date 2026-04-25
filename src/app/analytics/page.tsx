@@ -140,7 +140,7 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Tab bar */}
-      <div className="flex gap-1 border-b">
+      <div className="flex gap-1 border-b overflow-x-auto">
         {TABS.map(t => (
           <button
             key={t.id}
@@ -272,7 +272,7 @@ export default function AnalyticsPage() {
                     </div>
                     <Badge variant="secondary" className="gap-1"><ArrowUpRight size={12} /> By views</Badge>
                   </CardHeader>
-                  <CardContent className="p-0">
+                  <CardContent className="p-0 overflow-x-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>

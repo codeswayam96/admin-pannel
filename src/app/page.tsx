@@ -131,7 +131,7 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
           <p className="text-muted-foreground mt-1">Welcome back! Here&apos;s what&apos;s happening today.</p>
@@ -142,7 +142,7 @@ export default function DashboardPage() {
         </Badge>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {statCards.map((stat) => (
           <Card key={stat.label} className="relative overflow-hidden">
             <CardContent className="p-6">
@@ -172,7 +172,7 @@ export default function DashboardPage() {
             <CardDescription>Monthly users and revenue over the last 8 months</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={280}>
+            <ResponsiveContainer width="100%" height={240}>
               <AreaChart data={data.userGrowth} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
                 <defs>
                   <linearGradient id="colorUsers" x1="0" y1="0" x2="0" y2="1">
@@ -201,7 +201,7 @@ export default function DashboardPage() {
             <CardDescription>Monthly MRR breakdown</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={280}>
+            <ResponsiveContainer width="100%" height={240}>
               <BarChart data={data.revenueByProduct} layout="vertical" margin={{ top: 0, right: 5, left: -10, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(220 13% 91%)" horizontal={false} />
                 <XAxis type="number" tick={{ fontSize: 11 }} />

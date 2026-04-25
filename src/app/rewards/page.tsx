@@ -177,8 +177,8 @@ export default function RewardsPage() {
       {loading ? (
         <div className="py-20 flex justify-center"><Loader2 className="animate-spin" /></div>
       ) : tab === "coupons" ? (
-        <div className="border rounded-xl overflow-hidden bg-card">
-          <table className="w-full text-sm">
+        <div className="border rounded-xl overflow-x-auto bg-card">
+          <table className="w-full text-sm min-w-[600px]">
             <thead className="bg-muted/50 border-b">
               <tr>
                 {['Code', 'Points', 'Usage', 'Expires', 'Status', 'Actions'].map((h) => (
@@ -210,8 +210,8 @@ export default function RewardsPage() {
           </table>
         </div>
       ) : (
-        <div className="border rounded-xl overflow-hidden bg-card">
-          <table className="w-full text-sm">
+        <div className="border rounded-xl overflow-x-auto bg-card">
+          <table className="w-full text-sm min-w-[500px]">
             <thead className="bg-muted/50 border-b">
               <tr>
                 {['Date', 'Referrer', 'Redeemer', 'Points', 'Status'].map((h) => (

@@ -189,7 +189,7 @@ export default function SubscriptionsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Subscriptions</h1>
           <p className="text-muted-foreground mt-1">Manage user subscriptions and product bundles</p>
@@ -236,6 +236,7 @@ export default function SubscriptionsPage() {
             </div>
           ) : (
             <Card>
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -295,6 +296,7 @@ export default function SubscriptionsPage() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </Card>
           )}
         </TabsContent>

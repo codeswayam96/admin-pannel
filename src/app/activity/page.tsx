@@ -63,7 +63,7 @@ export default function ActivityPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Activity Log</h1>
           <p className="text-muted-foreground mt-1">Real-time history of all platform events</p>
@@ -86,7 +86,7 @@ export default function ActivityPage() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         {(["user", "blog", "product", "subscription", "credit"] as ActivityType[]).map((type) => {
           const config = typeConfig[type];
           return (

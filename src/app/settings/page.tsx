@@ -191,7 +191,7 @@ export default function SettingsPage() {
       </div>
 
       <Tabs defaultValue="general">
-        <TabsList className="mb-6 flex-wrap h-auto gap-1">
+        <TabsList className="mb-6 flex-wrap h-auto gap-1 overflow-x-auto">
           <TabsTrigger value="general" className="gap-1.5"><Globe size={13} />General</TabsTrigger>
           <TabsTrigger value="notifications" className="gap-1.5"><Bell size={13} />Notifications</TabsTrigger>
           <TabsTrigger value="moderation" className="gap-1.5"><Shield size={13} />Moderation</TabsTrigger>

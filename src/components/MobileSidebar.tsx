@@ -20,6 +20,11 @@ import {
   Menu,
   X,
   Command,
+  CreditCard,
+  Activity,
+  Coins,
+  Gift,
+  CheckCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { fetchProfile, logout } from '@/lib/api';
@@ -48,12 +53,17 @@ const navGroups = [
     items: [
       { href: '/saas-products', icon: ShoppingBag, label: 'SaaS Products' },
       { href: '/saas-products/analytics', icon: BarChart2, label: 'Product Analytics' },
+      { href: '/subscriptions', icon: CreditCard, label: 'Subscriptions' },
+      { href: '/credits', icon: Coins, label: 'Credits' },
+      { href: '/rewards', icon: Gift, label: 'Rewards' },
     ],
   },
   {
     label: 'System',
     items: [
       { href: '/users', icon: Users, label: 'Users' },
+      { href: '/approvals', icon: CheckCircle, label: 'Approvals' },
+      { href: '/activity', icon: Activity, label: 'Activity Log' },
       { href: '/settings', icon: Settings, label: 'Settings' },
     ],
   },
@@ -255,8 +265,6 @@ export function MobileSidebar() {
         )}
       </AnimatePresence>
 
-      {/* Spacer for mobile header */}
-      <div className="lg:hidden h-16" />
     </>
   );
 }
