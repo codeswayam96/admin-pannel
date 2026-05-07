@@ -2,9 +2,44 @@
 > admin-panel@0.1.0 build
 > next build
 
-▲ Next.js 16.1.6 (Turbopack)
+▲ Next.js 16.2.4 (Turbopack)
 - Environments: .env.local
 
   Creating an optimized production build ...
-✓ Compiled successfully in 31.4s
+✓ Compiled successfully in 46s
   Running TypeScript ...
+  Finished TypeScript in 54s ...
+  Collecting page data using 7 workers ...
+  Generating static pages using 7 workers (0/19) ...
+  Generating static pages using 7 workers (4/19) 
+  Generating static pages using 7 workers (9/19) 
+  Generating static pages using 7 workers (14/19) 
+✓ Generating static pages using 7 workers (19/19) in 3.2s
+  Finalizing page optimization ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ○ /activity
+├ ○ /analytics
+├ ○ /approvals
+├ ○ /blogs
+├ ƒ /blogs/[id]/edit
+├ ○ /blogs/new
+├ ○ /categories
+├ ○ /comments
+├ ○ /credits
+├ ○ /media
+├ ○ /rewards
+├ ○ /saas-products
+├ ○ /saas-products/analytics
+├ ○ /settings
+├ ○ /subscriptions
+└ ○ /users
+
+
+ƒ Proxy (Middleware)
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
