@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { Sidebar } from "@/components/Sidebar";
 import { MobileSidebar } from "@/components/MobileSidebar";
+import { AdminCommandPalette } from "@/components/AdminCommandPalette";
 import { Toaster } from "sonner";
 import { ThemeProvider } from "@/components/ThemeProvider";
 
@@ -34,6 +35,7 @@ export default function RootLayout({
             <Sidebar />
           </div>
           <MobileSidebar />
+          <AdminCommandPalette />
           <main className="flex-1 overflow-auto">
             <div className="pt-16 lg:pt-0 p-4 lg:p-8 max-w-[1400px] mx-auto">
               {children}

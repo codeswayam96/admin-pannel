@@ -34,8 +34,8 @@ export function ExportButton({
     setIsExporting(type);
     try {
       await fn();
-    } catch (error) {
-      console.error(`Export ${type} error:`, error);
+    } catch {
+      // Export errors are non-critical; silently fail to avoid exposing internals
     } finally {
       setIsExporting(null);
     }

@@ -32,6 +32,15 @@ const providerInfo: Record<string, { label: string; icon: any; status: "active" 
   r2: { label: "Cloudflare R2", icon: Cloud, status: "coming-soon" },
 };
 
+/** Sanitize a URL to prevent XSS via javascript: or data: URIs in img src */
+function sanitizeImgSrc(url: string): string {
+  if (!url) return "";
+  const trimmed = url.trim();
+  const lower = trimmed.toLowerCase();
+  if (lower.startsWith("javascript:") || lower.startsWith("data:text") || lower.startsWith("vbscript:")) return "";
+  return trimmed;
+}
+
 export default function MediaPage() {
   const [media, setMedia] = useState<MediaItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -171,7 +180,7 @@ export default function MediaPage() {
             <Card key={item.id} className="group overflow-hidden">
               <div className="relative aspect-video overflow-hidden bg-muted">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={item.url} alt={item.name} className="w-full h-full object-cover transition-transform group-hover:scale-105" onError={(e) => { (e.target as HTMLImageElement).src = `https://placehold.co/400x225/e5e7eb/9ca3af?text=${getMimeLabel(item.mimeType)}`; }} />
+                <img src={sanitizeImgSrc(item.url)} alt={item.name} className="w-full h-full object-cover transition-transform group-hover:scale-105" onError={(e) => { (e.target as HTMLImageElement).src = `https://placehold.co/400x225/e5e7eb/9ca3af?text=${getMimeLabel(item.mimeType)}`; }} />
                 <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                   <Button size="icon" variant="secondary" className="h-8 w-8" onClick={() => copyUrl(item.url)}>
                     <Copy size={14} />
@@ -209,7 +218,7 @@ export default function MediaPage() {
             {filtered.map((item) => (
               <div key={item.id} className="flex items-center gap-4 p-4 hover:bg-muted/30 transition-colors">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={item.url} alt={item.name} className="w-16 h-10 object-cover rounded-md flex-shrink-0" onError={(e) => { (e.target as HTMLImageElement).src = `https://placehold.co/64x40/e5e7eb/9ca3af?text=FILE`; }} />
+                <img src={sanitizeImgSrc(item.url)} alt={item.name} className="w-16 h-10 object-cover rounded-md flex-shrink-0" onError={(e) => { (e.target as HTMLImageElement).src = `https://placehold.co/64x40/e5e7eb/9ca3af?text=FILE`; }} />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{item.name}</p>
                   <p className="text-xs text-muted-foreground truncate">{item.url}</p>
@@ -295,7 +304,7 @@ export default function MediaPage() {
             {form.url && (
               <div className="rounded-lg overflow-hidden border bg-muted">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={form.url} alt="Preview" className="w-full h-32 object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                <img src={sanitizeImgSrc(form.url)} alt="Preview" className="w-full h-32 object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
               </div>
             )}
           </div>

@@ -2,7 +2,6 @@
 
 import React, { useCallback, useState } from 'react';
 import { useDropzone, FileRejection } from 'react-dropzone';
-import { motion, AnimatePresence } from 'framer-motion';
 import {
   Upload,
   X,
@@ -57,7 +56,7 @@ export function FileUploadZone({
     'application/pdf': ['.pdf'],
   },
   maxFiles = 10,
-  maxSize = 10 * 1024 * 1024, // 10MB
+  maxSize = 10 * 1024 * 1024,
   className = '',
 }: FileUploadZoneProps) {
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
@@ -65,7 +64,6 @@ export function FileUploadZone({
 
   const onDrop = useCallback(
     async (acceptedFiles: File[], rejectedFiles: FileRejection[]) => {
-      // Handle rejected files
       rejectedFiles.forEach((rejection) => {
         const error = rejection.errors[0]?.message || 'File rejected';
         setUploadedFiles((prev) => [
@@ -80,7 +78,6 @@ export function FileUploadZone({
         ]);
       });
 
-      // Add accepted files to the list
       const newFiles: UploadedFile[] = acceptedFiles.map((file) => ({
         file,
         id: Math.random().toString(36).substr(2, 9),
@@ -89,12 +86,9 @@ export function FileUploadZone({
       }));
 
       setUploadedFiles((prev) => [...prev, ...newFiles]);
-
-      // Start upload
       setIsUploading(true);
 
       try {
-        // Simulate progress for each file
         for (const uploadFile of newFiles) {
           setUploadedFiles((prev) =>
             prev.map((f) =>
@@ -102,7 +96,6 @@ export function FileUploadZone({
             )
           );
 
-          // Simulate upload progress
           for (let progress = 0; progress <= 100; progress += 20) {
             await new Promise((resolve) => setTimeout(resolve, 200));
             setUploadedFiles((prev) =>
@@ -111,10 +104,8 @@ export function FileUploadZone({
           }
         }
 
-        // Actual upload
         const urls = await onUpload(acceptedFiles);
 
-        // Update file statuses
         newFiles.forEach((uploadFile, index) => {
           setUploadedFiles((prev) =>
             prev.map((f) =>
@@ -125,7 +116,6 @@ export function FileUploadZone({
           );
         });
       } catch (error) {
-        // Mark all as error
         newFiles.forEach((uploadFile) => {
           setUploadedFiles((prev) =>
             prev.map((f) =>
@@ -143,12 +133,7 @@ export function FileUploadZone({
   );
 
   const { getRootProps, getInputProps, isDragActive, isDragAccept, isDragReject } =
-    useDropzone({
-      onDrop,
-      accept,
-      maxFiles,
-      maxSize,
-    });
+    useDropzone({ onDrop, accept, maxFiles, maxSize });
 
   const removeFile = (id: string) => {
     setUploadedFiles((prev) => prev.filter((f) => f.id !== id));
@@ -174,11 +159,9 @@ export function FileUploadZone({
       >
         <input {...getInputProps()} />
 
-        <motion.div
-          initial={false}
-          animate={{ scale: isDragActive ? 1.05 : 1 }}
-          transition={{ duration: 0.2 }}
-          className="flex flex-col items-center gap-4"
+        <div
+          className="flex flex-col items-center gap-4 transition-transform duration-200"
+          style={{ transform: isDragActive ? 'scale(1.05)' : 'scale(1)' }}
         >
           <div
             className={`
@@ -199,102 +182,80 @@ export function FileUploadZone({
                   : 'Some files will be rejected'
                 : 'Drag & drop files here'}
             </p>
-            <p className="text-sm text-muted-foreground mt-1">
-              or click to browse
-            </p>
+            <p className="text-sm text-muted-foreground mt-1">or click to browse</p>
           </div>
 
           <p className="text-xs text-muted-foreground">
             Max {maxFiles} files, up to {formatFileSize(maxSize)} each
           </p>
-        </motion.div>
+        </div>
       </div>
 
       {/* File List */}
-      <AnimatePresence>
-        {uploadedFiles.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="mt-4 space-y-2"
-          >
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-medium">
-                {uploadedFiles.length} file(s)
-              </p>
-              <Button variant="ghost" size="sm" onClick={clearAll}>
-                Clear all
-              </Button>
-            </div>
+      {uploadedFiles.length > 0 && (
+        <div className="mt-4 space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium">{uploadedFiles.length} file(s)</p>
+            <Button variant="ghost" size="sm" onClick={clearAll}>
+              Clear all
+            </Button>
+          </div>
 
-            {uploadedFiles.map((uploadFile) => {
-              const FileIcon = getFileIcon(uploadFile.file.type);
+          {uploadedFiles.map((uploadFile) => {
+            const FileIcon = getFileIcon(uploadFile.file.type);
 
-              return (
-                <motion.div
-                  key={uploadFile.id}
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, x: -10 }}
-                  className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 border"
+            return (
+              <div
+                key={uploadFile.id}
+                className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 border animate-in fade-in slide-in-from-top-2 duration-200"
+              >
+                <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-background flex items-center justify-center">
+                  <FileIcon className="h-5 w-5 text-muted-foreground" />
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{uploadFile.file.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {formatFileSize(uploadFile.file.size)}
+                  </p>
+
+                  {uploadFile.status === 'uploading' && (
+                    <Progress value={uploadFile.progress} className="h-1 mt-2" />
+                  )}
+
+                  {uploadFile.status === 'error' && uploadFile.error && (
+                    <p className="text-xs text-red-500 mt-1">{uploadFile.error}</p>
+                  )}
+                </div>
+
+                <div className="flex-shrink-0">
+                  {uploadFile.status === 'uploading' && (
+                    <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                  )}
+                  {uploadFile.status === 'success' && (
+                    <CheckCircle className="h-5 w-5 text-green-500" />
+                  )}
+                  {uploadFile.status === 'error' && (
+                    <AlertCircle className="h-5 w-5 text-red-500" />
+                  )}
+                  {uploadFile.status === 'pending' && (
+                    <div className="h-5 w-5 rounded-full border-2 border-muted-foreground/25" />
+                  )}
+                </div>
+
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 flex-shrink-0"
+                  onClick={() => removeFile(uploadFile.id)}
                 >
-                  {/* File Icon */}
-                  <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-background flex items-center justify-center">
-                    <FileIcon className="h-5 w-5 text-muted-foreground" />
-                  </div>
-
-                  {/* File Info */}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">
-                      {uploadFile.file.name}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {formatFileSize(uploadFile.file.size)}
-                    </p>
-
-                    {/* Progress bar */}
-                    {uploadFile.status === 'uploading' && (
-                      <Progress value={uploadFile.progress} className="h-1 mt-2" />
-                    )}
-
-                    {/* Error message */}
-                    {uploadFile.status === 'error' && uploadFile.error && (
-                      <p className="text-xs text-red-500 mt-1">{uploadFile.error}</p>
-                    )}
-                  </div>
-
-                  {/* Status Icon */}
-                  <div className="flex-shrink-0">
-                    {uploadFile.status === 'uploading' && (
-                      <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                    )}
-                    {uploadFile.status === 'success' && (
-                      <CheckCircle className="h-5 w-5 text-green-500" />
-                    )}
-                    {uploadFile.status === 'error' && (
-                      <AlertCircle className="h-5 w-5 text-red-500" />
-                    )}
-                    {uploadFile.status === 'pending' && (
-                      <div className="h-5 w-5 rounded-full border-2 border-muted-foreground/25" />
-                    )}
-                  </div>
-
-                  {/* Remove Button */}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 flex-shrink-0"
-                    onClick={() => removeFile(uploadFile.id)}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </motion.div>
-              );
-            })}
-          </motion.div>
-        )}
-      </AnimatePresence>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard,
   Users,
@@ -25,6 +24,11 @@ import {
   Coins,
   Gift,
   CheckCircle,
+  Bell,
+  Webhook,
+  Key,
+  ToggleLeft,
+  HeartPulse,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { fetchProfile, logout } from '@/lib/api';
@@ -62,9 +66,19 @@ const navGroups = [
     label: 'System',
     items: [
       { href: '/users', icon: Users, label: 'Users' },
+      { href: '/notifications', icon: Bell, label: 'Notifications' },
       { href: '/approvals', icon: CheckCircle, label: 'Approvals' },
       { href: '/activity', icon: Activity, label: 'Activity Log' },
       { href: '/settings', icon: Settings, label: 'Settings' },
+    ],
+  },
+  {
+    label: 'Developer',
+    items: [
+      { href: '/feature-flags', icon: ToggleLeft, label: 'Feature Flags' },
+      { href: '/webhooks', icon: Webhook, label: 'Webhooks' },
+      { href: '/api-keys', icon: Key, label: 'API Keys' },
+      { href: '/health', icon: HeartPulse, label: 'System Health' },
     ],
   },
 ];
@@ -151,25 +165,17 @@ export function MobileSidebar() {
       </div>
 
       {/* Mobile Sidebar Overlay */}
-      <AnimatePresence>
-        {isOpen && (
-          <>
-            {/* Backdrop */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsOpen(false)}
-              className="lg:hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
-            />
+      {isOpen && (
+        <>
+          {/* Backdrop */}
+          <div
+            onClick={() => setIsOpen(false)}
+            className="lg:hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+          />
 
-            {/* Sidebar */}
-            <motion.aside
-              initial={{ x: '-100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '-100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="lg:hidden fixed top-0 left-0 bottom-0 z-50 w-72 flex flex-col"
+          {/* Sidebar */}
+          <aside
+            className="lg:hidden fixed top-0 left-0 bottom-0 z-50 w-72 flex flex-col animate-in slide-in-from-left duration-300"
               style={{
                 background: 'hsl(var(--sidebar))',
                 color: 'hsl(var(--sidebar-foreground))',
@@ -260,10 +266,9 @@ export function MobileSidebar() {
                   </button>
                 </div>
               </div>
-            </motion.aside>
-          </>
-        )}
-      </AnimatePresence>
+          </aside>
+        </>
+      )}
 
     </>
   );

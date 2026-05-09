@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, MoreVertical, Shield, ShieldAlert, UserCheck, Mail, Calendar, Loader2, Users, UserPlus, Clock, Trash2 } from "lucide-react";
+import { Search, MoreVertical, Shield, ShieldAlert, UserCheck, Mail, Calendar, Loader2, Users, UserPlus, Clock, Trash2, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,6 +26,7 @@ interface User {
   status: string;
   lastActiveAt: string | null;
   createdAt: string;
+  signupSource?: string | null;
 }
 
 const roleColors: Record<string, string> = {
@@ -42,6 +43,36 @@ const statusColors: Record<string, string> = {
   suspended: "bg-red-100 text-red-700",
   pending: "bg-gray-100 text-gray-600",
 };
+
+// Deterministic colour per source string
+const SOURCE_PALETTES = [
+  "bg-violet-100 text-violet-700",
+  "bg-blue-100 text-blue-700",
+  "bg-emerald-100 text-emerald-700",
+  "bg-amber-100 text-amber-700",
+  "bg-pink-100 text-pink-700",
+  "bg-cyan-100 text-cyan-700",
+  "bg-rose-100 text-rose-700",
+  "bg-teal-100 text-teal-700",
+  "bg-orange-100 text-orange-700",
+  "bg-indigo-100 text-indigo-700",
+];
+
+function sourceColor(source: string) {
+  let hash = 0;
+  for (let i = 0; i < source.length; i++) hash = (hash * 31 + source.charCodeAt(i)) >>> 0;
+  return SOURCE_PALETTES[hash % SOURCE_PALETTES.length];
+}
+
+function formatSource(raw: string | null | undefined): string {
+  if (!raw) return "Direct";
+  // Strip common suffixes to get a clean label: "auraflow.codeswayam.com" → "auraflow"
+  return raw
+    .replace(/\.codeswayam\.com$/, "")
+    .replace(/^https?:\/\//, "")
+    .replace(/localhost(:\d+)?/, "localhost")
+    .split(".")[0];
+}
 
 const avatarColors = [
   "bg-violet-100 text-violet-700", "bg-blue-100 text-blue-700", "bg-emerald-100 text-emerald-700",
@@ -78,6 +109,7 @@ export default function UsersPage() {
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [sourceFilter, setSourceFilter] = useState("all");
   const [updatingId, setUpdatingId] = useState<number | null>(null);
 
   // Invite dialog
@@ -93,11 +125,17 @@ export default function UsersPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  // Unique sources for filter dropdown
+  const allSources = Array.from(
+    new Set(users.map(u => formatSource(u.signupSource)))
+  ).sort();
+
   const filtered = users.filter((u) => {
     const matchSearch = (u.name || "").toLowerCase().includes(search.toLowerCase()) || u.email.toLowerCase().includes(search.toLowerCase());
     const matchRole = roleFilter === "all" || u.role === roleFilter;
     const matchStatus = statusFilter === "all" || (u.status || "active") === statusFilter;
-    return matchSearch && matchRole && matchStatus;
+    const matchSource = sourceFilter === "all" || formatSource(u.signupSource) === sourceFilter;
+    return matchSearch && matchRole && matchStatus && matchSource;
   });
 
   const changeRole = async (id: number, role: string) => {
@@ -139,12 +177,21 @@ export default function UsersPage() {
       setInviteDialog(false);
       setInviteEmail("");
       setInviteRole("user");
-      // Reload users
       const updated = await fetchUsers();
       setUsers(updated);
     } catch (err: any) { toast.error(err.message || "Failed to invite user"); }
     setInviting(false);
   };
+
+  // Source breakdown for top sources stat
+  const sourceCounts = users.reduce<Record<string, number>>((acc, u) => {
+    const s = formatSource(u.signupSource);
+    acc[s] = (acc[s] || 0) + 1;
+    return acc;
+  }, {});
+  const topSources = Object.entries(sourceCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3);
 
   const counts = {
     total: users.length,
@@ -195,14 +242,26 @@ export default function UsersPage() {
         </Card>
         <Card>
           <CardContent className="p-5 flex items-start gap-4">
-            <div className="p-2.5 rounded-lg bg-red-100"><ShieldAlert size={18} className="text-red-600" /></div>
-            <div><p className="text-2xl font-bold">{counts.suspended}</p><p className="text-sm text-muted-foreground">Suspended</p></div>
+            <div className="p-2.5 rounded-lg bg-amber-100"><Globe size={18} className="text-amber-600" /></div>
+            <div>
+              <p className="text-sm text-muted-foreground mb-1.5">Top Sources</p>
+              <div className="flex flex-wrap gap-1">
+                {topSources.length === 0
+                  ? <span className="text-xs text-muted-foreground">—</span>
+                  : topSources.map(([src, count]) => (
+                    <span key={src} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold capitalize ${sourceColor(src)}`}>
+                      {src} <span className="opacity-60">·{count}</span>
+                    </span>
+                  ))
+                }
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
+      <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
         <div className="relative flex-1 max-w-sm">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <Input placeholder="Search by name or email..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
@@ -228,106 +287,127 @@ export default function UsersPage() {
             <SelectItem value="pending">Pending</SelectItem>
           </SelectContent>
         </Select>
+        <Select value={sourceFilter} onValueChange={setSourceFilter}>
+          <SelectTrigger className="w-[160px]"><SelectValue placeholder="All Sources" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Sources</SelectItem>
+            {allSources.map(s => (
+              <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Table */}
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>User</TableHead>
-              <TableHead>Role</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Last Active</TableHead>
-              <TableHead>Joined</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filtered.length === 0 ? (
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
-                  No users found
-                </TableCell>
+                <TableHead>User</TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Signup Source</TableHead>
+                <TableHead>Last Active</TableHead>
+                <TableHead>Joined</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
-            ) : (
-              filtered.map((user) => {
-                const rc = roleColors[user.role] || roleColors.user;
-                const sc = statusColors[user.status || "active"] || statusColors.active;
-                return (
-                  <TableRow key={user.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${getAvatarColor(user.id)}`}>
-                          {getInitials(user.name, user.email)}
+            </TableHeader>
+            <TableBody>
+              {filtered.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
+                    No users found
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filtered.map((user) => {
+                  const rc = roleColors[user.role] || roleColors.user;
+                  const sc = statusColors[user.status || "active"] || statusColors.active;
+                  const src = formatSource(user.signupSource);
+                  const srcColor = sourceColor(src);
+                  return (
+                    <TableRow key={user.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${getAvatarColor(user.id)}`}>
+                            {getInitials(user.name, user.email)}
+                          </div>
+                          <div>
+                            <p className="font-medium text-sm">{user.name || "—"}</p>
+                            <p className="text-xs text-muted-foreground flex items-center gap-1">
+                              <Mail size={11} /> {user.email}
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-medium text-sm">{user.name || "—"}</p>
-                          <p className="text-xs text-muted-foreground flex items-center gap-1">
-                            <Mail size={11} /> {user.email}
-                          </p>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${rc}`}>{user.role}</span>
-                    </TableCell>
-                    <TableCell>
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${sc}`}>{user.status || "active"}</span>
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      <span className="flex items-center gap-1"><Clock size={12} />{formatLastActive(user.lastActiveAt)}</span>
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      <span className="flex items-center gap-1"><Calendar size={12} />{user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "—"}</span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8" disabled={updatingId === user.id}>
-                            {updatingId === user.id ? <Loader2 size={15} className="animate-spin" /> : <MoreVertical size={15} />}
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuLabel>Change Role</DropdownMenuLabel>
-                          {(["user", "admin", "superadmin", "editor", "viewer", "subscriber"] as UserRole[]).filter(r => r !== user.role).map(r => (
-                            <DropdownMenuItem key={r} onClick={() => changeRole(user.id, r)} className="capitalize">{r}</DropdownMenuItem>
-                          ))}
-                          <DropdownMenuSeparator />
-                          <DropdownMenuLabel>Change Status</DropdownMenuLabel>
-                          {(["active", "suspended", "pending"] as const).filter(s => s !== (user.status || "active")).map(s => (
-                            <DropdownMenuItem key={s} onClick={() => changeStatus(user.id, s)} className="capitalize">
-                              {s === "suspended" ? "Suspend" : s === "active" ? "Activate" : "Set Pending"}
-                            </DropdownMenuItem>
-                          ))}
-                          <DropdownMenuSeparator />
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <DropdownMenuItem className="text-destructive" onSelect={(e) => e.preventDefault()}>
-                                <Trash2 size={13} className="mr-2" /> Delete User
+                      </TableCell>
+                      <TableCell>
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${rc}`}>{user.role}</span>
+                      </TableCell>
+                      <TableCell>
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${sc}`}>{user.status || "active"}</span>
+                      </TableCell>
+                      <TableCell>
+                        <span
+                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize ${srcColor}`}
+                          title={user.signupSource || "Direct signup"}
+                        >
+                          <Globe size={10} />
+                          {src}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        <span className="flex items-center gap-1"><Clock size={12} />{formatLastActive(user.lastActiveAt)}</span>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        <span className="flex items-center gap-1"><Calendar size={12} />{user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "—"}</span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" disabled={updatingId === user.id}>
+                              {updatingId === user.id ? <Loader2 size={15} className="animate-spin" /> : <MoreVertical size={15} />}
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Change Role</DropdownMenuLabel>
+                            {(["user", "admin", "superadmin", "editor", "viewer", "subscriber"] as UserRole[]).filter(r => r !== user.role).map(r => (
+                              <DropdownMenuItem key={r} onClick={() => changeRole(user.id, r)} className="capitalize">{r}</DropdownMenuItem>
+                            ))}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuLabel>Change Status</DropdownMenuLabel>
+                            {(["active", "suspended", "pending"] as const).filter(s => s !== (user.status || "active")).map(s => (
+                              <DropdownMenuItem key={s} onClick={() => changeStatus(user.id, s)} className="capitalize">
+                                {s === "suspended" ? "Suspend" : s === "active" ? "Activate" : "Set Pending"}
                               </DropdownMenuItem>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Delete {user.email}?</AlertDialogTitle>
-                                <AlertDialogDescription>This will permanently delete the user and all their data. This action cannot be undone.</AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => handleDelete(user.id)}>Delete Permanently</AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
+                            ))}
+                            <DropdownMenuSeparator />
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <DropdownMenuItem className="text-destructive" onSelect={(e) => e.preventDefault()}>
+                                  <Trash2 size={13} className="mr-2" /> Delete User
+                                </DropdownMenuItem>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Delete {user.email}?</AlertDialogTitle>
+                                  <AlertDialogDescription>This will permanently delete the user and all their data. This action cannot be undone.</AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => handleDelete(user.id)}>Delete Permanently</AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              )}
+            </TableBody>
+          </Table>
         </div>
       </Card>
 

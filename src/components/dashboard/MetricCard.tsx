@@ -1,7 +1,6 @@
 'use client';
 
 import React from 'react';
-import { motion } from 'framer-motion';
 import { ArrowUpRight, ArrowDownRight, TrendingUp, TrendingDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -44,27 +43,20 @@ export function MetricCard({
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      whileHover={onClick ? { scale: 1.02 } : undefined}
+    <div
       onClick={onClick}
       className={cn(
-        'p-6 rounded-xl border bg-card transition-all duration-300',
-        onClick && 'cursor-pointer hover:shadow-lg hover:border-primary/50',
+        'p-6 rounded-xl border bg-card transition-all duration-300 animate-in fade-in slide-in-from-bottom-2',
+        onClick && 'cursor-pointer hover:shadow-lg hover:border-primary/50 hover:scale-[1.02]',
         className
       )}
     >
       <div className="flex items-start justify-between">
         <div className="space-y-1">
           <p className="text-sm font-medium text-muted-foreground">{title}</p>
-          <motion.p
-            initial={{ scale: 0.5 }}
-            animate={{ scale: 1 }}
-            className="text-3xl font-bold tracking-tight"
-          >
+          <p className="text-3xl font-bold tracking-tight animate-in zoom-in-50 duration-300">
             {typeof value === 'number' ? value.toLocaleString() : value}
-          </motion.p>
+          </p>
         </div>
         {icon && (
           <div className="p-2 rounded-lg bg-primary/10 text-primary">
@@ -90,7 +82,7 @@ export function MetricCard({
           <span className="text-xs text-muted-foreground">{changeLabel}</span>
         </div>
       )}
-    </motion.div>
+    </div>
   );
 }
 

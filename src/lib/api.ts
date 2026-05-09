@@ -1,14 +1,42 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 const AUTH_URL = process.env.NEXT_PUBLIC_APP_AUTH_URL || "http://localhost:3003";
 
+// Guard: both env URLs must be http/https — prevents SSRF via env misconfiguration
+const ALLOWED_URL_PATTERN = /^https?:\/\//;
+if (typeof window === "undefined") {
+    if (API_URL && !ALLOWED_URL_PATTERN.test(API_URL)) {
+        throw new Error(`[Admin] Invalid NEXT_PUBLIC_API_URL: must start with http:// or https://`);
+    }
+    if (AUTH_URL && !ALLOWED_URL_PATTERN.test(AUTH_URL)) {
+        throw new Error(`[Admin] Invalid NEXT_PUBLIC_APP_AUTH_URL: must start with http:// or https://`);
+    }
+}
+
 export { API_URL, AUTH_URL };
 
 export function getAuthUrl(path: string, currentUrl?: string) {
     if (!currentUrl) return `${AUTH_URL}${path}`;
-    return `${AUTH_URL}${path}?redirect=${encodeURIComponent(currentUrl)}`;
+    // Only pass relative path — never full URL — to prevent open redirect
+    let safeRedirect = "/";
+    try {
+        const url = new URL(currentUrl, typeof window !== "undefined" ? window.location.origin : undefined);
+        if (typeof window !== "undefined" && url.origin === window.location.origin) {
+            // Sanitize: only allow path/query/hash, strip any protocol or host
+            const raw = url.pathname + url.search + url.hash;
+            safeRedirect = raw.startsWith("/") ? raw : "/";
+        }
+    } catch {
+        safeRedirect = "/";
+    }
+    return `${AUTH_URL}${path}?redirect=${encodeURIComponent(safeRedirect)}`;
 }
 
 async function apiFetch(path: string, options: RequestInit = {}) {
+    // Security: Prevent SSRF — path must be relative, no protocol, no host injection
+    if (!path.startsWith("/") || path.includes("://") || path.includes("..")) {
+        throw new Error("Security Violation: Invalid API path detected.");
+    }
+
     const res = await fetch(`${API_URL}${path}`, {
         ...options,
         credentials: "include",
@@ -18,7 +46,11 @@ async function apiFetch(path: string, options: RequestInit = {}) {
         },
     });
     if (res.status === 401) {
-        throw new Error("Authentication failed. Please login again.");
+        if (typeof window !== "undefined") {
+            // Use replace to prevent back-button loop
+            window.location.replace(getAuthUrl("/login", window.location.href));
+        }
+        return new Promise(() => {});
     }
     if (res.status === 403) {
         throw new Error("You do not have permission to access this resource.");
@@ -229,6 +261,30 @@ export async function updateSettings(data: Record<string, unknown>) {
     });
 }
 
+// ── Analytics Config (public, no auth needed) ────────────────────────
+export async function fetchAnalyticsConfig(appId: string) {
+    const sanitizedAppId = appId.replace(/[^a-zA-Z0-9\-_]/g, "");
+    if (!sanitizedAppId) return {};
+    return apiFetch(`/admin/analytics/config/${sanitizedAppId}`);
+}
+
+export async function fetchAnalyticsSettings() {
+    return apiFetch('/admin/analytics/settings');
+}
+
+export async function updateAnalyticsSettings(data: {
+    apps?: Record<string, { gtmId?: string; gscVerification?: string; label?: string }>;
+    ga4IdWeb?: string;
+    metaPixelId?: string;
+    hotjarId?: string;
+    clarityId?: string;
+}) {
+    return apiFetch('/admin/analytics/settings', {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+    });
+}
+
 export async function testSmtp(to: string) {
     return apiFetch("/admin/settings/test-smtp", {
         method: "POST",
@@ -330,4 +386,68 @@ export async function rejectDeletion(id: number, reason?: string) {
         method: "POST",
         body: JSON.stringify({ reason }),
     });
+}
+
+// ── Push Notifications ───────────────────────────────────────────────────────
+
+export type NotificationAudience = "all" | "subscribers" | "saas" | "segment";
+
+export interface NotificationCampaign {
+    id: number;
+    title: string;
+    body: string;
+    url: string | null;
+    icon: string | null;
+    audience: NotificationAudience;
+    saasId: string | null;
+    status: "pending" | "sending" | "sent" | "failed" | "scheduled";
+    sentCount: number;
+    failedCount: number;
+    scheduledAt: string | null;
+    sentAt: string | null;
+    createdAt: string;
+    createdBy: number | null;
+}
+
+export interface NotificationStats {
+    totalSubscribers: number;
+    totalSent: number;
+    totalFailed: number;
+    recentCampaigns: NotificationCampaign[];
+}
+
+export async function sendNotificationCampaign(data: {
+    title: string;
+    body: string;
+    url?: string;
+    icon?: string;
+    audience: NotificationAudience;
+    saasId?: string;
+    userIds?: number[];
+    scheduledAt?: string;
+}): Promise<{ campaignId: number; queued: number }> {
+    return apiFetch("/admin/notifications/send", {
+        method: "POST",
+        body: JSON.stringify(data),
+    });
+}
+
+export async function fetchNotificationCampaigns(): Promise<NotificationCampaign[]> {
+    return apiFetch("/admin/notifications/campaigns");
+}
+
+export async function fetchNotificationStats(): Promise<NotificationStats> {
+    return apiFetch("/admin/notifications/stats");
+}
+
+export async function fetchNotificationSubscribers(): Promise<any[]> {
+    return apiFetch("/admin/notifications/subscribers");
+}
+
+export async function revokeNotificationSubscription(id: number): Promise<{ success: boolean }> {
+    return apiFetch(`/admin/notifications/subscribers/${id}`, { method: "DELETE" });
+}
+
+export async function deleteNotificationCampaign(id: number): Promise<{ success: boolean }> {
+    return apiFetch(`/admin/notifications/campaigns/${id}`, { method: "DELETE" });
 }

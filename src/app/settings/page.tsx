@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import {
   Save, ShieldCheck, Key, Mail, Lock, Eye, EyeOff, Send,
-  RefreshCw, CheckCircle2, Globe, Bell, Palette, Shield, Loader2, FlaskConical, Gift
+  CheckCircle2, Globe, Bell, Palette, Shield, Loader2, FlaskConical, Gift, BarChart2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { fetchSettings, updateSettings, testSmtp, changePassword, fetchReferralSettings, updateReferralSettings } from "@/lib/api";
+import { fetchSettings, updateSettings, testSmtp, changePassword, fetchReferralSettings, updateReferralSettings, fetchAnalyticsSettings, updateAnalyticsSettings, fetchProducts } from "@/lib/api";
 
 // ── Types ────────────────────────────────────────────────────────────────
 interface Settings {
@@ -38,6 +38,20 @@ interface Settings {
   smtpPass: string; smtpFromEmail: string; smtpFromName: string;
 }
 
+interface AppAnalytics {
+  gtmId: string;
+  gscVerification: string;
+  label: string;
+}
+
+interface AnalyticsConfig {
+  apps: Record<string, AppAnalytics>;
+  ga4IdWeb: string;
+  metaPixelId: string;
+  hotjarId: string;
+  clarityId: string;
+}
+
 const defaults: Settings = {
   siteName: "CodeSwayam", siteUrl: "https://codeswayam.com",
   siteDescription: "Empowering developers with SaaS insights and coding tutorials.",
@@ -51,6 +65,20 @@ const defaults: Settings = {
   theme: "light", accentColor: "#8b5cf6", postsPerPage: "10",
   showAuthorBio: true, enableTableOfContents: true, enableSocialShare: true,
   smtpHost: "", smtpPort: "587", smtpUser: "", smtpPass: "", smtpFromEmail: "", smtpFromName: "CodeSwayam",
+};
+
+// Fixed core apps that are always present (not in saas-products table)
+const CORE_APPS = [
+  { id: "web", label: "codeswayam-web" },
+  { id: "auth", label: "codeswayam-auth" },
+];
+
+const defaultAnalytics: AnalyticsConfig = {
+  apps: {},
+  ga4IdWeb: "",
+  metaPixelId: "",
+  hotjarId: "",
+  clarityId: "",
 };
 
 const accentPresets = ["#8b5cf6", "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#06b6d4", "#f97316"];
@@ -96,12 +124,16 @@ export default function SettingsPage() {
   const [refSettings, setRefSettings] = useState({ referralEnabled: true, referralPointsValue: 50 });
   const [savingRef, setSavingRef] = useState(false);
 
+  // Analytics
+  const [analytics, setAnalytics] = useState<AnalyticsConfig>(defaultAnalytics);
+  const [savingAnalytics, setSavingAnalytics] = useState(false);
+  const [saasProducts, setSaasProducts] = useState<{ saasId: string; name: string }[]>([]);
+
   useEffect(() => {
     fetchSettings()
       .then((data) => {
         if (data) {
           const safeData: any = { ...data };
-          // Ensure absolutely NO nulls overwrite defaults
           Object.keys(defaults).forEach(k => {
             const key = k as keyof Settings;
             if (safeData[key] === null || safeData[key] === undefined) {
@@ -117,7 +149,49 @@ export default function SettingsPage() {
     fetchReferralSettings().then(data => {
       if (data) setRefSettings(data);
     }).catch(() => {});
+
+    fetchAnalyticsSettings().then(data => {
+      if (data) setAnalytics({ ...defaultAnalytics, ...data, apps: data.apps || {} });
+    }).catch(() => {});
+
+    fetchProducts().then((products: any[]) => {
+      // Deduplicate by productFamily — one GTM entry per app, not per plan.
+      // If productFamily is not set, fall back to saasId (single-plan products).
+      const seen = new Set<string>();
+      const deduped: { saasId: string; name: string }[] = [];
+      for (const p of products) {
+        const familyKey = p.productFamily || p.saasId;
+        if (!seen.has(familyKey)) {
+          seen.add(familyKey);
+          // Use the tag as the display name for the family (e.g. "Auraflow")
+          deduped.push({ saasId: familyKey, name: p.tag || p.name });
+        }
+      }
+      setSaasProducts(deduped);
+    }).catch(() => {});
   }, []);
+
+  const updApp = (appId: string, field: keyof AppAnalytics, value: string) => {
+    setAnalytics(prev => ({
+      ...prev,
+      apps: {
+        ...prev.apps,
+        [appId]: { ...prev.apps[appId], gtmId: "", gscVerification: "", label: appId, [field]: value },
+      },
+    }));
+  };
+
+  const saveAnalytics = async () => {
+    setSavingAnalytics(true);
+    try {
+      await updateAnalyticsSettings(analytics);
+      toast.success("Analytics settings saved!");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save analytics settings");
+    } finally {
+      setSavingAnalytics(false);
+    }
+  };
 
   const upd = (key: keyof Settings, val: any) => setS(p => ({ ...p, [key]: val }));
 
@@ -200,6 +274,7 @@ export default function SettingsPage() {
           <TabsTrigger value="security" className="gap-1.5"><Lock size={13} />Security</TabsTrigger>
           <TabsTrigger value="authentication" className="gap-1.5"><ShieldCheck size={13} />Auth</TabsTrigger>
           <TabsTrigger value="referrals" className="gap-1.5"><Gift size={13} />Referrals</TabsTrigger>
+          <TabsTrigger value="analytics" className="gap-1.5"><BarChart2 size={13} />Analytics</TabsTrigger>
         </TabsList>
 
         {/* ── General ─────────────────────────────────────────────────── */}
@@ -635,6 +710,140 @@ export default function SettingsPage() {
                   Contact support to enable enterprise auth options.
                 </p>
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ── Analytics ────────────────────────────────────────────────── */}
+        <TabsContent value="analytics" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BarChart2 size={18} className="text-primary" />
+                Analytics & Tracking
+              </CardTitle>
+              <CardDescription>
+                GTM IDs and GSC verification are stored in the database and served dynamically — no .env changes or redeploys needed.
+                Each app fetches its config from <code className="bg-muted px-1 rounded text-xs">/admin/analytics/config/:appId</code>.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+
+              {/* Per-app GTM + GSC — dynamic from DB */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold">Per-App Tracking <span className="text-xs font-normal text-muted-foreground">(GTM ID + GSC verification per app)</span></p>
+                </div>
+
+                {/* Core apps (always shown) */}
+                <div className="space-y-3">
+                  {CORE_APPS.map(({ id, label }) => (
+                    <div key={id} className="rounded-lg border p-4 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Globe size={14} className="text-muted-foreground" />
+                        <span className="text-sm font-medium">{label}</span>
+                        <Badge variant="outline" className="text-[10px] font-mono">{id}</Badge>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">GTM Container ID</Label>
+                          <Input
+                            placeholder="GTM-XXXXXXX"
+                            value={analytics.apps[id]?.gtmId || ""}
+                            onChange={(e) => updApp(id, "gtmId", e.target.value)}
+                            className="font-mono text-sm"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">GSC Verification (content= value)</Label>
+                          <Input
+                            placeholder="paste content= value here"
+                            value={analytics.apps[id]?.gscVerification || ""}
+                            onChange={(e) => updApp(id, "gscVerification", e.target.value)}
+                            className="font-mono text-sm"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* SaaS products — dynamic */}
+                  {saasProducts.map(({ saasId, name }) => (
+                    <div key={saasId} className="rounded-lg border p-4 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Globe size={14} className="text-muted-foreground" />
+                        <span className="text-sm font-medium">{name}</span>
+                        <Badge variant="outline" className="text-[10px] font-mono">{saasId}</Badge>
+                        <Badge variant="secondary" className="text-[10px]">SaaS Product</Badge>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">GTM Container ID</Label>
+                          <Input
+                            placeholder="GTM-XXXXXXX"
+                            value={analytics.apps[saasId]?.gtmId || ""}
+                            onChange={(e) => updApp(saasId, "gtmId", e.target.value)}
+                            className="font-mono text-sm"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">GSC Verification (content= value)</Label>
+                          <Input
+                            placeholder="paste content= value here"
+                            value={analytics.apps[saasId]?.gscVerification || ""}
+                            onChange={(e) => updApp(saasId, "gscVerification", e.target.value)}
+                            className="font-mono text-sm"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {saasProducts.length === 0 && (
+                    <p className="text-xs text-muted-foreground px-1">No SaaS products yet. Add products in <a href="/saas-products" className="text-primary underline">SaaS Products</a> and they'll appear here automatically.</p>
+                  )}
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Standalone tracking */}
+              <div className="space-y-3">
+                <p className="text-sm font-semibold">Standalone Tracking <span className="text-xs font-normal text-muted-foreground">(skip if managing via GTM)</span></p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">GA4 Measurement ID (Web)</Label>
+                    <Input placeholder="G-XXXXXXXXXX" value={analytics.ga4IdWeb || ""} onChange={(e) => setAnalytics(p => ({ ...p, ga4IdWeb: e.target.value }))} className="font-mono text-sm" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Meta Pixel ID (Global)</Label>
+                    <Input placeholder="123456789012345" value={analytics.metaPixelId || ""} onChange={(e) => setAnalytics(p => ({ ...p, metaPixelId: e.target.value }))} className="font-mono text-sm" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Hotjar Site ID</Label>
+                    <Input placeholder="1234567" value={analytics.hotjarId || ""} onChange={(e) => setAnalytics(p => ({ ...p, hotjarId: e.target.value }))} className="font-mono text-sm" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Microsoft Clarity ID</Label>
+                    <Input placeholder="xxxxxxxxxx" value={analytics.clarityId || ""} onChange={(e) => setAnalytics(p => ({ ...p, clarityId: e.target.value }))} className="font-mono text-sm" />
+                  </div>
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Info box */}
+              <div className="rounded-lg border border-violet-200 bg-violet-50 dark:border-violet-500/20 dark:bg-violet-500/10 p-4">
+                <p className="text-xs font-semibold text-violet-700 dark:text-violet-400 mb-2">How it works — no .env needed</p>
+                <ol className="text-xs text-violet-700 dark:text-violet-400 space-y-1 list-decimal list-inside">
+                  <li>GTM IDs are saved to the database here — no environment variables required</li>
+                  <li>Each app calls <code className="bg-violet-100 dark:bg-violet-900 px-1 rounded">/admin/analytics/config/:appId</code> at runtime to get its GTM ID</li>
+                  <li>Adding a new SaaS product in <strong>SaaS Products</strong> automatically adds it to this list</li>
+                  <li>Change GTM IDs anytime without redeploying any app</li>
+                </ol>
+              </div>
+
+              <SectionSave onSave={saveAnalytics} saving={savingAnalytics} label="Save Analytics Settings" />
             </CardContent>
           </Card>
         </TabsContent>

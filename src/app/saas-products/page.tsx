@@ -22,6 +22,7 @@ import { fetchProducts, createProduct, updateProduct, deleteProduct } from "@/li
 interface Product {
   id: number;
   saasId: string;
+  productFamily: string | null;
   icon: string | null;
   name: string;
   tag: string;
@@ -45,6 +46,7 @@ interface Product {
 
 interface ProductForm {
   saasId: string;
+  productFamily: string;
   name: string;
   tag: string;
   description: string;
@@ -83,7 +85,7 @@ const planTierColors: Record<string, string> = {
 };
 
 const emptyForm: ProductForm = {
-  saasId: "", name: "", tag: "", description: "", domain: "",
+  saasId: "", productFamily: "", name: "", tag: "", description: "", domain: "",
   status: "active", featured: "no", icon: "", price: "", subscribers: "",
   monthlyPriceInr: "", yearlyPriceInr: "",
   monthlyPriceUsd: "", yearlyPriceUsd: "",
@@ -182,6 +184,7 @@ export default function SaasProductsPage() {
   const openEdit = (p: Product) => {
     setForm({
       saasId: p.saasId,
+      productFamily: p.productFamily || "",
       name: p.name,
       tag: p.tag,
       description: p.description,
@@ -208,12 +211,22 @@ export default function SaasProductsPage() {
   };
 
   const setField = (key: keyof ProductForm, value: string | boolean) => {
-    setForm(prev => ({ ...prev, [key]: value }));
+    setForm(prev => {
+      const updated = { ...prev, [key]: value };
+      // Auto-populate productFamily from saasId when creating (not editing)
+      // Strip plan suffixes like _pro, _enter, _enterprise, _standard, _free
+      if (key === "saasId" && !editProduct && typeof value === "string") {
+        const family = value.replace(/[_-](pro|enterprise|enter|standard|free|basic|starter|growth|scale|plus|max)$/i, "");
+        updated.productFamily = family;
+      }
+      return updated;
+    });
   };
 
   const handleSave = async () => {
     if (!form.name.trim()) { toast.error("Product name is required"); return; }
     if (!form.saasId.trim()) { toast.error("SaaS ID is required"); return; }
+    if (!form.productFamily.trim()) { toast.error("Product Family is required — used for JWT scopes and GTM"); return; }
     if (!form.domain.trim()) { toast.error("Domain is required"); return; }
 
     // Validate usage limits JSON if provided
@@ -227,6 +240,7 @@ export default function SaasProductsPage() {
     try {
       const payload: Record<string, unknown> = {
         saasId: form.saasId.trim(),
+        productFamily: form.productFamily.trim(),
         name: form.name.trim(),
         tag: form.tag.trim(),
         description: form.description.trim(),
@@ -425,6 +439,9 @@ export default function SaasProductsPage() {
                                 )}
                               </div>
                               <p className="text-xs text-muted-foreground mt-1 font-mono">{product.saasId}</p>
+                              {product.productFamily && product.productFamily !== product.saasId && (
+                                <p className="text-[10px] text-muted-foreground/60 font-mono">family: {product.productFamily}</p>
+                              )}
                             </div>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
@@ -540,24 +557,35 @@ export default function SaasProductsPage() {
                 <div className="space-y-1.5">
                   <Label>SaaS ID <span className="text-destructive">*</span></Label>
                   <Input
-                    placeholder="auraflow"
+                    placeholder="auraflow_pro"
                     value={form.saasId}
                     onChange={e => setField("saasId", e.target.value.toLowerCase().replace(/\s+/g, "-"))}
                     className="font-mono text-sm"
                   />
-                  <p className="text-[10px] text-muted-foreground">Unique slug. Used in JWT scopes and SSS routing.</p>
+                  <p className="text-[10px] text-muted-foreground">Unique plan key, e.g. <code>auraflow_pro</code></p>
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Product Name <span className="text-destructive">*</span></Label>
-                  <Input placeholder="AuraFlow AI" value={form.name} onChange={e => setField("name", e.target.value)} />
+                  <Label>Product Family <span className="text-destructive">*</span></Label>
+                  <Input
+                    placeholder="auraflow"
+                    value={form.productFamily}
+                    onChange={e => setField("productFamily", e.target.value.toLowerCase().replace(/\s+/g, "-"))}
+                    className="font-mono text-sm"
+                  />
+                  <p className="text-[10px] text-muted-foreground">Shared app id across all plans, e.g. <code>auraflow</code>. Used for JWT scopes &amp; GTM.</p>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label>Tag / Category</Label>
-                  <Input placeholder="workflow-ai" value={form.tag} onChange={e => setField("tag", e.target.value)} />
+                  <Label>Product Name <span className="text-destructive">*</span></Label>
+                  <Input placeholder="AuraFlow Pro" value={form.name} onChange={e => setField("name", e.target.value)} />
                 </div>
                 <div className="space-y-1.5">
+                  <Label>Tag / Category</Label>
+                  <Input placeholder="workflow-ai" value={form.tag} onChange={e => setField("tag", e.target.value)} />
+                  <p className="text-[10px] text-muted-foreground">Groups plans visually in the admin panel</p>
+                </div>
+                <div className="space-y-1.5 col-span-2">
                   <Label>Domain <span className="text-destructive">*</span></Label>
                   <Input placeholder="auraflow.codeswayam.com" value={form.domain} onChange={e => setField("domain", e.target.value)} />
                 </div>

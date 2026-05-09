@@ -211,7 +211,7 @@ export async function exportElementToPDF(
     pdf.addImage(imgData, 'PNG', 10, startY, imgWidth, Math.min(imgHeight, pageHeight - startY - 10));
 
     pdf.save(`${filename}_${new Date().toISOString().split('T')[0]}.pdf`);
-  } catch (error) {
-    console.error('Error exporting to PDF:', error);
+  } catch {
+    // Export errors are non-critical; silently fail to avoid exposing internals
   }
 }
