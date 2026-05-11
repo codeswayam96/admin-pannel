@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Users, FileText, ShoppingBag, Settings,
   BarChart2, Tag, Image, MessageSquare, ChevronRight, Zap, LogOut,
-  CreditCard, Activity, Coins, Gift, CheckCircle, Bell, Webhook, Key, ToggleLeft, HeartPulse
+  CreditCard, Activity, Coins, Gift, CheckCircle, Bell, Webhook, Key, ToggleLeft, HeartPulse, CalendarDays
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { fetchProfile, logout } from "@/lib/api";
@@ -35,6 +35,7 @@ const navGroups = [
       { href: "/saas-products", icon: ShoppingBag, label: "SaaS Products" },
       { href: "/saas-products/analytics", icon: BarChart2, label: "Product Analytics" },
       { href: "/subscriptions", icon: CreditCard, label: "Subscriptions" },
+      { href: "/trials", icon: CalendarDays, label: "Trials" },
       { href: "/credits", icon: Coins, label: "Credits" },
       { href: "/rewards", icon: Gift, label: "Rewards" },
     ],

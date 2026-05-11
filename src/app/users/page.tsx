@@ -15,6 +15,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { toast } from "sonner";
 import { ErrorState } from "@/components/ErrorState";
 import { fetchUsers, updateUserRole, updateUserStatus, deleteUser, inviteUser } from "@/lib/api";
+import { usePagination, Pagination } from "@/components/Pagination";
 
 type UserRole = "user" | "admin" | "superadmin" | "editor" | "viewer" | "subscriber";
 
@@ -137,6 +138,8 @@ export default function UsersPage() {
     const matchSource = sourceFilter === "all" || formatSource(u.signupSource) === sourceFilter;
     return matchSearch && matchRole && matchStatus && matchSource;
   });
+
+  const { page, setPage, pageSize, changePageSize, totalPages, paginated, total } = usePagination(filtered, 20);
 
   const changeRole = async (id: number, role: string) => {
     setUpdatingId(id);
@@ -314,14 +317,14 @@ export default function UsersPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.length === 0 ? (
+              {paginated.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
                     No users found
                   </TableCell>
                 </TableRow>
               ) : (
-                filtered.map((user) => {
+                paginated.map((user) => {
                   const rc = roleColors[user.role] || roleColors.user;
                   const sc = statusColors[user.status || "active"] || statusColors.active;
                   const src = formatSource(user.signupSource);
@@ -409,6 +412,11 @@ export default function UsersPage() {
             </TableBody>
           </Table>
         </div>
+        <Pagination
+          page={page} totalPages={totalPages} total={total} pageSize={pageSize}
+          onPageChange={setPage} onPageSizeChange={changePageSize}
+          label="users"
+        />
       </Card>
 
       {/* Invite Dialog */}

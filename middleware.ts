@@ -15,7 +15,7 @@ export function middleware(request: NextRequest) {
     const token = request.cookies.get("Authentication")?.value;
     const authUrl = process.env.NEXT_PUBLIC_APP_AUTH_URL || "http://localhost:3003";
     // Only pass the relative path as redirect — never the full URL — to prevent open redirect
-    const currentPath = request.nextUrl.pathname + request.nextUrl.search;
+    const currentPath = request.nextUrl.href;
     const loginUrl = `${authUrl}/login?redirect=${encodeURIComponent(currentPath)}`;
     const safeLoginUrl = escapeHtml(loginUrl);
 

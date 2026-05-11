@@ -18,6 +18,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
+import { usePagination, Pagination } from "@/components/Pagination";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -78,6 +79,11 @@ export default function CreditsPage() {
   const [adjustForm, setAdjustForm] = useState({ points: "", reason: "" });
 
   const [saving, setSaving] = useState(false);
+
+  // Pagination
+  const txPagination  = usePagination(transactions, 25);
+  const userPagination = usePagination(userBals, 25);
+  const featurePagination = usePagination(features, 25);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -343,7 +349,8 @@ export default function CreditsPage() {
 
           {/* ────────── TAB: FEATURE COSTS ────────── */}
           {tab === "features" && (
-            <div className="border rounded-xl overflow-x-auto">
+            <div className="border rounded-xl overflow-hidden">
+              <div className="overflow-x-auto">
               <table className="w-full text-sm min-w-[700px]">
                 <thead className="bg-muted/50 border-b">
                   <tr>
@@ -353,11 +360,11 @@ export default function CreditsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {features.length === 0 ? (
+                  {featurePagination.paginated.length === 0 ? (
                     <tr><td colSpan={8} className="text-center py-12 text-muted-foreground">
                       <Zap size={28} className="mx-auto mb-2 opacity-30" /><br />No feature costs yet.
                     </td></tr>
-                  ) : features.map((f, i) => (
+                  ) : featurePagination.paginated.map((f, i) => (
                     <tr key={f.id} className={i % 2 === 0 ? "" : "bg-muted/20"}>
                       <td className="px-4 py-2.5 font-mono text-xs text-muted-foreground">{f.saasId}</td>
                       <td className="px-4 py-2.5 font-mono text-xs">{f.featureKey}</td>
@@ -400,12 +407,20 @@ export default function CreditsPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
+              <Pagination
+                page={featurePagination.page} totalPages={featurePagination.totalPages}
+                total={featurePagination.total} pageSize={featurePagination.pageSize}
+                onPageChange={featurePagination.setPage} onPageSizeChange={featurePagination.changePageSize}
+                label="features"
+              />
             </div>
           )}
 
           {/* ────────── TAB: TRANSACTIONS ────────── */}
           {tab === "transactions" && (
-            <div className="border rounded-xl overflow-x-auto">
+            <div className="border rounded-xl overflow-hidden">
+              <div className="overflow-x-auto">
               <table className="w-full text-sm min-w-[700px]">
                 <thead className="bg-muted/50 border-b">
                   <tr>
@@ -415,11 +430,11 @@ export default function CreditsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {transactions.length === 0 ? (
+                  {txPagination.paginated.length === 0 ? (
                     <tr><td colSpan={7} className="text-center py-12 text-muted-foreground">
                       <History size={28} className="mx-auto mb-2 opacity-30" /><br />No transactions yet.
                     </td></tr>
-                  ) : transactions.map((t, i) => (
+                  ) : txPagination.paginated.map((t, i) => (
                     <tr key={t.id} className={i % 2 === 0 ? "" : "bg-muted/20"}>
                       <td className="px-4 py-2.5">
                         <p className="font-medium">{t.userName || "?"}</p>
@@ -441,12 +456,20 @@ export default function CreditsPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
+              <Pagination
+                page={txPagination.page} totalPages={txPagination.totalPages}
+                total={txPagination.total} pageSize={txPagination.pageSize}
+                onPageChange={txPagination.setPage} onPageSizeChange={txPagination.changePageSize}
+                label="transactions"
+              />
             </div>
           )}
 
           {/* ────────── TAB: USER BALANCES ────────── */}
           {tab === "users" && (
-            <div className="border rounded-xl overflow-x-auto">
+            <div className="border rounded-xl overflow-hidden">
+              <div className="overflow-x-auto">
               <table className="w-full text-sm min-w-[600px]">
                 <thead className="bg-muted/50 border-b">
                   <tr>
@@ -456,11 +479,11 @@ export default function CreditsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {userBals.length === 0 ? (
+                  {userPagination.paginated.length === 0 ? (
                     <tr><td colSpan={6} className="text-center py-12 text-muted-foreground">
                       <Users size={28} className="mx-auto mb-2 opacity-30" /><br />No users have credits yet.
                     </td></tr>
-                  ) : userBals.map((u, i) => (
+                  ) : userPagination.paginated.map((u, i) => (
                     <tr key={u.userId} className={i % 2 === 0 ? "" : "bg-muted/20"}>
                       <td className="px-4 py-2.5">
                         <p className="font-medium">{u.userName || "—"}</p>
@@ -481,6 +504,13 @@ export default function CreditsPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
+              <Pagination
+                page={userPagination.page} totalPages={userPagination.totalPages}
+                total={userPagination.total} pageSize={userPagination.pageSize}
+                onPageChange={userPagination.setPage} onPageSizeChange={userPagination.changePageSize}
+                label="users"
+              />
             </div>
           )}
         </>

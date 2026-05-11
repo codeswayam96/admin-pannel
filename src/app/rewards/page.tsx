@@ -16,6 +16,7 @@ import {
   fetchAdminReferrals,
   updateAdminCoupon,
 } from "@/lib/api";
+import { usePagination, Pagination } from "@/components/Pagination";
 
 type Coupon = {
   id: number;
@@ -86,6 +87,9 @@ export default function RewardsPage() {
 
   const activeCoupons = useMemo(() => coupons.filter((c) => c.isActive === 1).length, [coupons]);
   const totalCouponClaims = useMemo(() => coupons.reduce((acc, c) => acc + (c.usesCount || 0), 0), [coupons]);
+
+  const couponPagination = usePagination(coupons, 20);
+  const referralPagination = usePagination(referrals, 25);
 
   const openCreate = () => {
     setEditing(null);
@@ -177,7 +181,8 @@ export default function RewardsPage() {
       {loading ? (
         <div className="py-20 flex justify-center"><Loader2 className="animate-spin" /></div>
       ) : tab === "coupons" ? (
-        <div className="border rounded-xl overflow-x-auto bg-card">
+        <div className="border rounded-xl overflow-hidden bg-card">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[600px]">
             <thead className="bg-muted/50 border-b">
               <tr>
@@ -187,9 +192,9 @@ export default function RewardsPage() {
               </tr>
             </thead>
             <tbody>
-              {coupons.length === 0 ? (
+              {couponPagination.paginated.length === 0 ? (
                 <tr><td className="px-4 py-12 text-center text-muted-foreground" colSpan={6}>No coupons found.</td></tr>
-              ) : coupons.map((c) => (
+              ) : couponPagination.paginated.map((c) => (
                 <tr key={c.id} className="border-b last:border-0">
                   <td className="px-4 py-3 font-mono font-semibold">{c.code}</td>
                   <td className="px-4 py-3">{c.pointsAwarded}</td>
@@ -208,9 +213,17 @@ export default function RewardsPage() {
               ))}
             </tbody>
           </table>
+          </div>
+          <Pagination
+            page={couponPagination.page} totalPages={couponPagination.totalPages}
+            total={couponPagination.total} pageSize={couponPagination.pageSize}
+            onPageChange={couponPagination.setPage} onPageSizeChange={couponPagination.changePageSize}
+            label="coupons"
+          />
         </div>
       ) : (
-        <div className="border rounded-xl overflow-x-auto bg-card">
+        <div className="border rounded-xl overflow-hidden bg-card">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[500px]">
             <thead className="bg-muted/50 border-b">
               <tr>
@@ -220,9 +233,9 @@ export default function RewardsPage() {
               </tr>
             </thead>
             <tbody>
-              {referrals.length === 0 ? (
+              {referralPagination.paginated.length === 0 ? (
                 <tr><td className="px-4 py-12 text-center text-muted-foreground" colSpan={5}>No referral activity found.</td></tr>
-              ) : referrals.map((r) => (
+              ) : referralPagination.paginated.map((r) => (
                 <tr key={r.id} className="border-b last:border-0">
                   <td className="px-4 py-3">{new Date(r.createdAt).toLocaleString()}</td>
                   <td className="px-4 py-3">
@@ -239,6 +252,13 @@ export default function RewardsPage() {
               ))}
             </tbody>
           </table>
+          </div>
+          <Pagination
+            page={referralPagination.page} totalPages={referralPagination.totalPages}
+            total={referralPagination.total} pageSize={referralPagination.pageSize}
+            onPageChange={referralPagination.setPage} onPageSizeChange={referralPagination.changePageSize}
+            label="referrals"
+          />
         </div>
       )}
 

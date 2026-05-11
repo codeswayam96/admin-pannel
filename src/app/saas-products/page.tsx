@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, Search, Pencil, Trash2, MoreVertical, Loader2, Globe, IndianRupee, Users, TrendingUp, Tag, CheckCircle2, ExternalLink, Sparkles } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, MoreVertical, Loader2, Globe, IndianRupee, Users, TrendingUp, CheckCircle2, ExternalLink, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -64,6 +64,7 @@ interface ProductForm {
   // Advanced
   planTier: string;
   isFreeTier: boolean;
+  trialDays: string;
   featuresText: string;   // comma-separated string parsed to JSON array before save
   usageLimitsText: string; // JSON text parsed before save
 }
@@ -89,7 +90,7 @@ const emptyForm: ProductForm = {
   status: "active", featured: "no", icon: "", price: "", subscribers: "",
   monthlyPriceInr: "", yearlyPriceInr: "",
   monthlyPriceUsd: "", yearlyPriceUsd: "",
-  planTier: "standard", isFreeTier: false,
+  planTier: "standard", isFreeTier: false, trialDays: "0",
   featuresText: "", usageLimitsText: "",
 };
 
@@ -159,7 +160,7 @@ export default function SaasProductsPage() {
   // ── Derived stats ──────────────────────────────────────────────────────────
   const filtered = products.filter(p => {
     const matchSearch = p.name.toLowerCase().includes(search.toLowerCase())
-      || p.tag.toLowerCase().includes(search.toLowerCase())
+      || (p.productFamily || "").toLowerCase().includes(search.toLowerCase())
       || p.saasId.toLowerCase().includes(search.toLowerCase());
     const matchStatus = statusFilter === "all" || p.status === statusFilter;
     return matchSearch && matchStatus;
@@ -202,6 +203,7 @@ export default function SaasProductsPage() {
       // Advanced
       planTier: p.planTier || "standard",
       isFreeTier: (p.isFreeTier ?? 0) === 1,
+      trialDays: String((p as any).trialDays ?? 0),
       featuresText: featuresToText(p.features),
       usageLimitsText: p.usageLimits && p.usageLimits !== "{}" ? p.usageLimits : "",
     });
@@ -259,6 +261,7 @@ export default function SaasProductsPage() {
         // Advanced
         planTier: form.planTier,
         isFreeTier: (form.isFreeTier || form.planTier === "free") ? 1 : 0,
+        trialDays: form.trialDays ? Number(form.trialDays) : 0,
         features: textToFeaturesJson(form.featuresText),
         usageLimits: form.usageLimitsText.trim() || "{}",
       };
@@ -348,7 +351,7 @@ export default function SaasProductsPage() {
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1 max-w-sm">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input placeholder="Search by name, tag, or ID..." className="pl-9" value={search} onChange={e => setSearch(e.target.value)} />
+          <Input placeholder="Search by name, family, or ID..." className="pl-9" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-[160px]"><SelectValue placeholder="Status" /></SelectTrigger>
@@ -362,7 +365,7 @@ export default function SaasProductsPage() {
         </Select>
       </div>
 
-      {/* Product Grid Grouped by Tag */}
+      {/* Product Grid Grouped by Product Family */}
       {filtered.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16">
@@ -377,26 +380,38 @@ export default function SaasProductsPage() {
         <div className="space-y-10">
           {Object.entries(
             filtered.reduce((acc, p) => {
-              const tag = p.tag || "Uncategorized";
-              if (!acc[tag]) acc[tag] = [];
-              acc[tag].push(p);
+              const family = p.productFamily || p.saasId || "Uncategorized";
+              if (!acc[family]) acc[family] = [];
+              acc[family].push(p);
               return acc;
             }, {} as Record<string, Product[]>)
           )
-          .sort(([tagA, productsA], [tagB, productsB]) => {
-            // Sort tags by whether they have active products
+          .sort(([familyA, productsA], [familyB, productsB]) => {
             const activeA = productsA.some(p => p.status === "active");
             const activeB = productsB.some(p => p.status === "active");
             if (activeA && !activeB) return -1;
             if (!activeA && activeB) return 1;
-            return tagA.localeCompare(tagB);
+            return familyA.localeCompare(familyB);
           })
-          .map(([tag, groupProducts]) => (
-            <div key={tag} className="space-y-4">
-              <div className="flex items-center gap-2 px-1">
-                <Tag size={16} className="text-violet-600" />
-                <h2 className="text-lg font-bold tracking-tight capitalize">{tag.replace(/-/g, " ")}</h2>
-                <Badge variant="outline" className="ml-1 text-[10px] py-0 h-4 bg-gray-50">{groupProducts.length} plans</Badge>
+          .map(([family, groupProducts]) => {
+            const familyRevenue = groupProducts.reduce((sum, p) => sum + ((p.monthlyPriceInr || 0) / 100) * (p.subscribers || 0), 0);
+            const familySubscribers = groupProducts.reduce((sum, p) => sum + (p.subscribers || 0), 0);
+            return (
+            <div key={family} className="space-y-4">
+              <div className="flex items-center gap-3 px-1">
+                <div className="w-7 h-7 rounded-lg bg-violet-100 flex items-center justify-center shrink-0">
+                  <Globe size={14} className="text-violet-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h2 className="text-lg font-bold tracking-tight capitalize">{family.replace(/-/g, " ")}</h2>
+                    <Badge variant="outline" className="text-[10px] py-0 h-4 bg-gray-50 font-mono">{family}</Badge>
+                    <Badge variant="outline" className="text-[10px] py-0 h-4 bg-gray-50">{groupProducts.length} plan{groupProducts.length !== 1 ? "s" : ""}</Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {familySubscribers.toLocaleString()} subscribers · ₹{familyRevenue.toLocaleString("en-IN", { maximumFractionDigits: 0 })}/mo
+                  </p>
+                </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                 {groupProducts
@@ -532,7 +547,8 @@ export default function SaasProductsPage() {
                   })}
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -707,7 +723,7 @@ export default function SaasProductsPage() {
             {/* ── Section 3: Advanced / Plan Configuration ── */}
             <div className="space-y-4">
               <div className="flex items-center gap-2">
-                <Tag size={15} className="text-primary" />
+                <CheckCircle2 size={15} className="text-primary" />
                 <h3 className="text-sm font-semibold">Plan Configuration</h3>
               </div>
 
@@ -734,6 +750,18 @@ export default function SaasProductsPage() {
                     </SelectContent>
                   </Select>
                   <p className="text-[10px] text-muted-foreground">Shows "Free Forever" badge on pricing cards</p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Free Trial Days</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="90"
+                    placeholder="0"
+                    value={form.trialDays ?? ""}
+                    onChange={e => setField("trialDays", e.target.value)}
+                  />
+                  <p className="text-[10px] text-muted-foreground">0 = no trial. Users get full access for this many days before billing starts.</p>
                 </div>
               </div>
 

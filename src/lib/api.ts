@@ -16,19 +16,7 @@ export { API_URL, AUTH_URL };
 
 export function getAuthUrl(path: string, currentUrl?: string) {
     if (!currentUrl) return `${AUTH_URL}${path}`;
-    // Only pass relative path — never full URL — to prevent open redirect
-    let safeRedirect = "/";
-    try {
-        const url = new URL(currentUrl, typeof window !== "undefined" ? window.location.origin : undefined);
-        if (typeof window !== "undefined" && url.origin === window.location.origin) {
-            // Sanitize: only allow path/query/hash, strip any protocol or host
-            const raw = url.pathname + url.search + url.hash;
-            safeRedirect = raw.startsWith("/") ? raw : "/";
-        }
-    } catch {
-        safeRedirect = "/";
-    }
-    return `${AUTH_URL}${path}?redirect=${encodeURIComponent(safeRedirect)}`;
+    return `${AUTH_URL}${path}?redirect=${encodeURIComponent(currentUrl)}`;
 }
 
 async function apiFetch(path: string, options: RequestInit = {}) {
@@ -451,3 +439,29 @@ export async function revokeNotificationSubscription(id: number): Promise<{ succ
 export async function deleteNotificationCampaign(id: number): Promise<{ success: boolean }> {
     return apiFetch(`/admin/notifications/campaigns/${id}`, { method: "DELETE" });
 }
+
+// ── Trial Periods ─────────────────────────────────────────────────────────────
+
+export async function fetchTrialSubscriptions() {
+    return apiFetch("/admin/subscriptions/trials");
+}
+
+export async function convertTrialToActive(subscriptionId: number) {
+    return apiFetch(`/admin/subscriptions/${subscriptionId}/convert-trial`, {
+        method: "POST",
+    });
+}
+
+export async function extendTrial(subscriptionId: number, days: number) {
+    return apiFetch(`/admin/subscriptions/${subscriptionId}/extend-trial`, {
+        method: "POST",
+        body: JSON.stringify({ days }),
+    });
+}
+
+// ── System Health ─────────────────────────────────────────────────────────────
+
+export async function fetchSystemHealth() {
+    return apiFetch("/health");
+}
+

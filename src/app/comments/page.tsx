@@ -10,6 +10,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { toast } from "sonner";
 import { fetchComments, updateCommentStatus, deleteComment } from "@/lib/api";
 import { ErrorState } from "@/components/ErrorState";
+import { usePagination, Pagination } from "@/components/Pagination";
 
 type CommentStatus = "pending" | "approved" | "spam";
 
@@ -63,6 +64,8 @@ export default function CommentsPage() {
       (c.authorEmail || "").toLowerCase().includes(search.toLowerCase())) &&
     (statusFilter === "all" || c.status === statusFilter)
   );
+
+  const { page, setPage, pageSize, changePageSize, totalPages, paginated, total } = usePagination(filtered, 20);
 
   const approve = async (id: number) => {
     setUpdatingId(id);
@@ -147,7 +150,7 @@ export default function CommentsPage() {
       </div>
 
       <div className="space-y-3">
-        {filtered.map((comment) => {
+        {paginated.map((comment) => {
           const sc = statusConfig[comment.status];
           const isUpdating = updatingId === comment.id;
           return (
@@ -219,6 +222,15 @@ export default function CommentsPage() {
           <div className="text-center py-16 text-muted-foreground">
             <MessageSquare size={40} className="mx-auto mb-3 opacity-30" />
             <p>{comments.length === 0 ? "No comments yet. They will appear here once users engage with your blog posts." : "No comments match your filter."}</p>
+          </div>
+        )}
+        {filtered.length > 0 && (
+          <div className="border rounded-xl overflow-hidden">
+            <Pagination
+              page={page} totalPages={totalPages} total={total} pageSize={pageSize}
+              onPageChange={setPage} onPageSizeChange={changePageSize}
+              label="comments"
+            />
           </div>
         )}
       </div>

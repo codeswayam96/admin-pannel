@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { fetchSubscriptions, fetchBundles, createBundle, updateBundle, deleteBundle, fetchProducts } from "@/lib/api";
 import { ErrorState } from "@/components/ErrorState";
+import { usePagination, Pagination } from "@/components/Pagination";
 
 interface Subscription {
   id: number;
@@ -84,6 +85,8 @@ export default function SubscriptionsPage() {
     features: string; productIds: number[] 
   }>(emptyBundleForm);
   const [saving, setSaving] = useState(false);
+
+  const subPagination = usePagination(subscriptions, 25);
 
   const load = () => {
     setLoading(true);
@@ -251,7 +254,7 @@ export default function SubscriptionsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {subscriptions.map((sub) => (
+                  {subPagination.paginated.map((sub) => (
                     <TableRow key={sub.id}>
                       <TableCell>
                         <div>
@@ -297,6 +300,12 @@ export default function SubscriptionsPage() {
                 </TableBody>
               </Table>
               </div>
+              <Pagination
+                page={subPagination.page} totalPages={subPagination.totalPages}
+                total={subPagination.total} pageSize={subPagination.pageSize}
+                onPageChange={subPagination.setPage} onPageSizeChange={subPagination.changePageSize}
+                label="subscriptions"
+              />
             </Card>
           )}
         </TabsContent>

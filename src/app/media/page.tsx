@@ -13,6 +13,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { toast } from "sonner";
 import { fetchMedia, createMedia, deleteMedia } from "@/lib/api";
 import { ErrorState } from "@/components/ErrorState";
+import { usePagination, Pagination } from "@/components/Pagination";
 
 interface MediaItem {
   id: number;
@@ -63,6 +64,9 @@ export default function MediaPage() {
   useEffect(() => { load(); }, []);
 
   const filtered = media.filter(m => m.name.toLowerCase().includes(search.toLowerCase()) || m.url.toLowerCase().includes(search.toLowerCase()));
+
+  const PAGE_SIZE = viewMode === "grid" ? 24 : 20;
+  const { page, setPage, pageSize, changePageSize, totalPages, paginated, total } = usePagination(filtered, PAGE_SIZE);
 
   const copyUrl = (url: string) => {
     navigator.clipboard.writeText(url);
@@ -175,8 +179,9 @@ export default function MediaPage() {
           )}
         </div>
       ) : viewMode === "grid" ? (
+        <>
         <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filtered.map((item) => (
+          {paginated.map((item) => (
             <Card key={item.id} className="group overflow-hidden">
               <div className="relative aspect-video overflow-hidden bg-muted">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -212,10 +217,14 @@ export default function MediaPage() {
             </Card>
           ))}
         </div>
+        <div className="border rounded-xl overflow-hidden mt-2">
+          <Pagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} onPageChange={setPage} onPageSizeChange={changePageSize} label="files" pageSizeOptions={[12, 24, 48]} />
+        </div>
+        </>
       ) : (
         <Card className="overflow-hidden">
           <div className="divide-y">
-            {filtered.map((item) => (
+            {paginated.map((item) => (
               <div key={item.id} className="flex items-center gap-4 p-4 hover:bg-muted/30 transition-colors">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={sanitizeImgSrc(item.url)} alt={item.name} className="w-16 h-10 object-cover rounded-md flex-shrink-0" onError={(e) => { (e.target as HTMLImageElement).src = `https://placehold.co/64x40/e5e7eb/9ca3af?text=FILE`; }} />
@@ -247,6 +256,7 @@ export default function MediaPage() {
               </div>
             ))}
           </div>
+          <Pagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} onPageChange={setPage} onPageSizeChange={changePageSize} label="files" pageSizeOptions={[10, 20, 50]} />
         </Card>
       )}
 

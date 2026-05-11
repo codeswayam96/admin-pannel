@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { ErrorState } from "@/components/ErrorState";
 import { fetchBlogs, deleteBlog, updateBlog } from "@/lib/api";
+import { usePagination, Pagination } from "@/components/Pagination";
 
 interface Blog {
   id: number;
@@ -61,6 +62,8 @@ export default function BlogsPage() {
     const matchStatus = statusFilter === "all" || b.status === statusFilter;
     return matchSearch && matchStatus;
   });
+
+  const { page, setPage, pageSize, changePageSize, totalPages, paginated, total } = usePagination(filtered, 20);
 
   const published = blogs.filter(b => b.status === "published").length;
   const draft = blogs.filter(b => b.status === "draft").length;
@@ -174,14 +177,14 @@ export default function BlogsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.length === 0 ? (
+              {paginated.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
                     No blogs found
                   </TableCell>
                 </TableRow>
               ) : (
-                filtered.map((blog) => (
+                paginated.map((blog) => (
                   <TableRow key={blog.id}>
                     <TableCell>
                       <p className="font-medium line-clamp-1">{blog.title}</p>
@@ -272,6 +275,11 @@ export default function BlogsPage() {
               )}
             </TableBody>
           </Table>
+          <Pagination
+            page={page} totalPages={totalPages} total={total} pageSize={pageSize}
+            onPageChange={setPage} onPageSizeChange={changePageSize}
+            label="posts"
+          />
         </CardContent>
       </Card>
     </div>
