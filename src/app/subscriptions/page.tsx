@@ -17,6 +17,9 @@ import { toast } from "sonner";
 import { fetchSubscriptions, fetchBundles, createBundle, updateBundle, deleteBundle, fetchProducts } from "@/lib/api";
 import { ErrorState } from "@/components/ErrorState";
 import { usePagination, Pagination } from "@/components/Pagination";
+import { ExportButton } from "@/components/dashboard/ExportButton";
+import { exportToCSV, exportToJSON } from "@/lib/export/csv-exporter";
+import { exportToPDF } from "@/lib/export/pdf-exporter";
 
 interface Subscription {
   id: number;
@@ -46,6 +49,7 @@ interface Bundle {
   monthlyPriceUsd?: number;
   yearlyPriceUsd?: number;
   features?: string | null;
+  creditPoints?: number | null;
   status: string;
   createdAt: string;
   items: { bundleId: number; saasProductId: number; productName: string | null; productSaasId: string | null }[];
@@ -68,7 +72,7 @@ const StatusIcon = ({ status }: { status: string }) => {
 const emptyBundleForm = { 
   name: "", description: "", price: "", status: "active", 
   monthlyPriceInr: "", yearlyPriceInr: "", monthlyPriceUsd: "", yearlyPriceUsd: "", 
-  features: "", productIds: [] as number[] 
+  features: "", creditPoints: "", productIds: [] as number[] 
 };
 
 export default function SubscriptionsPage() {
@@ -82,7 +86,7 @@ export default function SubscriptionsPage() {
   const [bundleForm, setBundleForm] = useState<{ 
     name: string; description: string; price: string; status: string; 
     monthlyPriceInr: string; yearlyPriceInr: string; monthlyPriceUsd: string; yearlyPriceUsd: string; 
-    features: string; productIds: number[] 
+    features: string; creditPoints: string; productIds: number[] 
   }>(emptyBundleForm);
   const [saving, setSaving] = useState(false);
 
@@ -116,6 +120,7 @@ export default function SubscriptionsPage() {
       monthlyPriceUsd: b.monthlyPriceUsd ? String(b.monthlyPriceUsd / 100) : "",
       yearlyPriceUsd: b.yearlyPriceUsd ? String(b.yearlyPriceUsd / 100) : "",
       features: feats,
+      creditPoints: b.creditPoints != null ? String(b.creditPoints) : "",
       productIds: b.items.map(i => i.saasProductId) 
     });
     setEditBundle(b);
@@ -145,6 +150,7 @@ export default function SubscriptionsPage() {
         monthlyPriceUsd: bundleForm.monthlyPriceUsd ? Number(bundleForm.monthlyPriceUsd) * 100 : undefined,
         yearlyPriceUsd: bundleForm.yearlyPriceUsd ? Number(bundleForm.yearlyPriceUsd) * 100 : undefined,
         features: parsedFeatures,
+        creditPoints: bundleForm.creditPoints ? Number(bundleForm.creditPoints) : 0,
         status: bundleForm.status, 
         productIds: bundleForm.productIds 
       };
@@ -190,6 +196,69 @@ export default function SubscriptionsPage() {
 
   if (error) return <ErrorState error={error} onRetry={load} />;
 
+  const handleExportSubscriptions = async (format: "csv" | "pdf" | "json") => {
+    if (subscriptions.length === 0) {
+      toast.error("No subscriptions to export");
+      return;
+    }
+
+    const data = subscriptions.map((s) => ({
+      id: s.id,
+      user: s.userName || "—",
+      email: s.userEmail || "—",
+      planType: s.planType?.replace(/_/g, " ") || "—",
+      productOrBundle: s.productName || s.bundleName || "—",
+      billingCycle: s.billingCycle || "—",
+      amountInr: s.amount != null ? s.amount / 100 : 0,
+      currency: s.currency || "INR",
+      status: s.status,
+      paymentId: s.razorpayPaymentId || "—",
+      expiresAt: s.expiresAt ? new Date(s.expiresAt).toLocaleDateString() : "Never",
+      createdAt: s.createdAt ? new Date(s.createdAt).toLocaleDateString() : "—",
+    }));
+
+    if (format === "csv") {
+      exportToCSV(data, "subscriptions_export", [
+        { key: "id", header: "Subscription ID" },
+        { key: "user", header: "User Name" },
+        { key: "email", header: "User Email" },
+        { key: "planType", header: "Plan Type" },
+        { key: "productOrBundle", header: "Product / Bundle" },
+        { key: "billingCycle", header: "Cycle" },
+        { key: "amountInr", header: "Amount (INR)" },
+        { key: "currency", header: "Currency" },
+        { key: "status", header: "Status" },
+        { key: "paymentId", header: "Payment ID" },
+        { key: "expiresAt", header: "Expires At" },
+        { key: "createdAt", header: "Created At" },
+      ]);
+      toast.success(`Exported ${data.length} subscriptions to CSV`);
+    } else if (format === "pdf") {
+      await exportToPDF(
+        data,
+        "subscriptions_export",
+        [
+          { key: "id", header: "ID" },
+          { key: "user", header: "User" },
+          { key: "email", header: "Email" },
+          { key: "productOrBundle", header: "Product/Bundle" },
+          { key: "billingCycle", header: "Cycle" },
+          { key: "amountInr", header: "Amount (Rs)" },
+          { key: "status", header: "Status" },
+          { key: "expiresAt", header: "Expires" },
+        ],
+        {
+          title: "User Subscriptions Directory",
+          subtitle: `Total: ${data.length} subscriptions • Exported on ${new Date().toLocaleDateString()}`,
+        }
+      );
+      toast.success(`Exported ${data.length} subscriptions to PDF`);
+    } else if (format === "json") {
+      exportToJSON(data, "subscriptions_export");
+      toast.success(`Exported ${data.length} subscriptions to JSON`);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -197,7 +266,14 @@ export default function SubscriptionsPage() {
           <h1 className="text-3xl font-bold tracking-tight">Subscriptions</h1>
           <p className="text-muted-foreground mt-1">Manage user subscriptions and product bundles</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <ExportButton
+            onExportCSV={() => handleExportSubscriptions("csv")}
+            onExportPDF={() => handleExportSubscriptions("pdf")}
+            onExportJSON={() => handleExportSubscriptions("json")}
+            label="Export Subscriptions"
+            count={subscriptions.length}
+          />
           <Button variant="outline" size="sm" onClick={load}><RefreshCw size={14} /></Button>
           <Button onClick={openCreateBundle}><Plus size={16} /> New Bundle</Button>
         </div>
@@ -383,6 +459,9 @@ export default function SubscriptionsPage() {
                         {(bundle.yearlyPriceInr || bundle.price > 0) && (
                           <p className="text-xs text-emerald-600 font-medium">Yearly: ₹{((bundle.yearlyPriceInr ? bundle.yearlyPriceInr / 100 : bundle.price * 10)).toLocaleString()}</p>
                         )}
+                        {bundle.creditPoints != null && bundle.creditPoints > 0 && (
+                          <p className="text-xs text-violet-600 font-semibold mt-0.5">+{bundle.creditPoints.toLocaleString()} credits included</p>
+                        )}
                       </div>
                       <span className="text-xs text-muted-foreground">{bundle.items.length} products</span>
                     </div>
@@ -448,7 +527,7 @@ export default function SubscriptionsPage() {
               <Textarea rows={2} placeholder="Brief bundle description..." value={bundleForm.description} onChange={(e) => setBundleForm(p => ({ ...p, description: e.target.value }))} />
             </div>
             
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <div className="space-y-1.5">
                 <Label>Status</Label>
                 <Select value={bundleForm.status} onValueChange={(v) => setBundleForm(p => ({ ...p, status: v }))}>
@@ -462,6 +541,10 @@ export default function SubscriptionsPage() {
               <div className="space-y-1.5">
                 <Label>Features (Comma separated)</Label>
                 <Input placeholder="Feature 1, Feature 2" value={bundleForm.features} onChange={(e) => setBundleForm(p => ({ ...p, features: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Credit Points</Label>
+                <Input type="number" min="0" placeholder="0" value={bundleForm.creditPoints} onChange={(e) => setBundleForm(p => ({ ...p, creditPoints: e.target.value }))} />
               </div>
             </div>
             <div className="space-y-1.5">

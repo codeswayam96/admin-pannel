@@ -17,6 +17,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ErrorState } from "@/components/ErrorState";
 import { fetchAnalytics, fetchRevenue } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import { ExportButton } from "@/components/dashboard/ExportButton";
+import { exportToCSV, exportToJSON } from "@/lib/export/csv-exporter";
+import { exportToPDF } from "@/lib/export/pdf-exporter";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -101,6 +105,97 @@ export default function AnalyticsPage() {
     { id: "revenue" as const, label: "Revenue", icon: <DollarSign size={14} /> },
   ];
 
+  const handleExportAnalytics = async (format: "csv" | "pdf" | "json") => {
+    if (tab === "traffic") {
+      if (!trafficData) {
+        toast.error("Traffic data not loaded");
+        return;
+      }
+      const rows = (trafficData.trafficOverview || []).map((t) => ({
+        date: t.date,
+        sessions: t.sessions,
+        pageviews: t.pageviews,
+        users: t.users,
+      }));
+
+      if (format === "csv") {
+        exportToCSV(rows, `analytics_traffic_${range}`, [
+          { key: "date", header: "Date" },
+          { key: "sessions", header: "Sessions" },
+          { key: "pageviews", header: "Pageviews" },
+          { key: "users", header: "Unique Users" },
+        ]);
+        toast.success("Exported traffic analytics to CSV");
+      } else if (format === "pdf") {
+        await exportToPDF(
+          rows,
+          `analytics_traffic_${range}`,
+          [
+            { key: "date", header: "Date" },
+            { key: "sessions", header: "Sessions" },
+            { key: "pageviews", header: "Pageviews" },
+            { key: "users", header: "Users" },
+          ],
+          {
+            title: "Traffic Analytics Report",
+            subtitle: `Range: ${range} • Exported on ${new Date().toLocaleDateString()}`,
+          }
+        );
+        toast.success("Exported traffic report to PDF");
+      } else if (format === "json") {
+        exportToJSON(trafficData, `analytics_traffic_${range}`);
+        toast.success("Exported traffic data to JSON");
+      }
+    } else {
+      if (!revenueData) {
+        toast.error("Revenue data not loaded");
+        return;
+      }
+      const rows = (revenueData.mrrChartData || []).map((m) => ({
+        month: m.month,
+        revenueInr: m.revenue,
+      }));
+
+      if (format === "csv") {
+        exportToCSV(rows, `analytics_revenue_${revenueRange}`, [
+          { key: "month", header: "Month" },
+          { key: "revenueInr", header: "Monthly Revenue (INR)" },
+        ]);
+        toast.success("Exported revenue analytics to CSV");
+      } else if (format === "pdf") {
+        const pdfRows = [
+          { metric: "Current MRR", value: formatInr(revenueData.mrr * 100) },
+          { metric: "Annual Run Rate (ARR)", value: formatInr(revenueData.arr * 100) },
+          { metric: "Active Subscriptions", value: String(revenueData.activeSubs) },
+          ...(revenueData.revenueByProduct || []).map((p) => ({
+            metric: `Product: ${p.name}`,
+            value: formatInr(p.total),
+          })),
+          ...rows.map((r) => ({
+            metric: `Month: ${r.month}`,
+            value: `Rs. ${r.revenueInr.toLocaleString("en-IN")}`,
+          })),
+        ];
+        await exportToPDF(
+          pdfRows,
+          `analytics_revenue_${revenueRange}`,
+          [
+            { key: "metric", header: "Metric / Product / Month" },
+            { key: "value", header: "Revenue / Amount" },
+          ],
+          {
+            title: "Revenue & MRR Analytics Report",
+            subtitle: `Range: ${revenueRange} • Exported on ${new Date().toLocaleDateString()}`,
+          }
+        );
+        toast.success("Exported revenue report to PDF");
+      } else if (format === "json") {
+        exportToJSON(revenueData, `analytics_revenue_${revenueRange}`);
+        toast.success("Exported revenue data to JSON");
+      }
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -109,7 +204,7 @@ export default function AnalyticsPage() {
           <h1 className="text-3xl font-bold tracking-tight">Analytics</h1>
           <p className="text-muted-foreground mt-1">Track traffic, revenue, and performance</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {tab === "traffic" && (
             <Select value={range} onValueChange={setRange}>
               <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
@@ -136,6 +231,12 @@ export default function AnalyticsPage() {
               </Button>
             </>
           )}
+          <ExportButton
+            onExportCSV={() => handleExportAnalytics("csv")}
+            onExportPDF={() => handleExportAnalytics("pdf")}
+            onExportJSON={() => handleExportAnalytics("json")}
+            label={`Export ${tab === "traffic" ? "Traffic" : "Revenue"}`}
+          />
         </div>
       </div>
 
@@ -174,24 +275,33 @@ export default function AnalyticsPage() {
           ) : (
             <>
               {/* Metrics */}
-              <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-                {[
-                  { label: "Total Pageviews", value: trafficData.metrics.pageviews >= 1000 ? `${(trafficData.metrics.pageviews / 1000).toFixed(1)}K` : String(trafficData.metrics.pageviews), icon: Eye },
-                  { label: "Unique Users", value: trafficData.metrics.uniqueUsers >= 1000 ? `${(trafficData.metrics.uniqueUsers / 1000).toFixed(1)}K` : String(trafficData.metrics.uniqueUsers), icon: Users },
-                  { label: "Avg. Click Rate", value: `${trafficData.metrics.avgClickRate}%`, icon: MousePointerClick },
-                  { label: "Avg. Session Time", value: trafficData.metrics.avgSessionTime, icon: Timer },
-                ].map((m) => (
-                  <Card key={m.label}>
-                    <CardContent className="p-5">
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="p-2 rounded-lg bg-violet-100"><m.icon size={18} className="text-violet-600" /></div>
-                      </div>
-                      <p className="text-2xl font-bold">{m.value}</p>
-                      <p className="text-sm text-muted-foreground">{m.label}</p>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+              {(() => {
+                const metrics = trafficData.metrics ?? { pageviews: 0, uniqueUsers: 0, avgClickRate: 0, avgSessionTime: "0m 0s" };
+                const pv = metrics.pageviews ?? 0;
+                const uu = metrics.uniqueUsers ?? 0;
+                const cr = metrics.avgClickRate ?? 0;
+                const st = metrics.avgSessionTime ?? "0m 0s";
+                return (
+                  <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+                    {[
+                      { label: "Total Pageviews", value: pv >= 1000 ? `${(pv / 1000).toFixed(1)}K` : String(pv), icon: Eye },
+                      { label: "Unique Users", value: uu >= 1000 ? `${(uu / 1000).toFixed(1)}K` : String(uu), icon: Users },
+                      { label: "Avg. Click Rate", value: `${cr}%`, icon: MousePointerClick },
+                      { label: "Avg. Session Time", value: st, icon: Timer },
+                    ].map((m) => (
+                      <Card key={m.label}>
+                        <CardContent className="p-5">
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="p-2 rounded-lg bg-violet-100"><m.icon size={18} className="text-violet-600" /></div>
+                          </div>
+                          <p className="text-2xl font-bold">{m.value}</p>
+                          <p className="text-sm text-muted-foreground">{m.label}</p>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                );
+              })()}
 
               {/* Traffic Chart */}
               <Card>
@@ -201,7 +311,7 @@ export default function AnalyticsPage() {
                 </CardHeader>
                 <CardContent>
                   <ResponsiveContainer width="100%" height={300}>
-                    <AreaChart data={trafficData.trafficOverview} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+                    <AreaChart data={trafficData.trafficOverview ?? []} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
                       <defs>
                         <linearGradient id="gSessions" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.25} />
@@ -233,7 +343,15 @@ export default function AnalyticsPage() {
                   </CardHeader>
                   <CardContent>
                     {(() => {
-                      const sourcesWithColors = trafficData.trafficSources.map(s => ({
+                      const sources = trafficData.trafficSources ?? [];
+                      if (sources.length === 0) {
+                        return (
+                          <div className="flex flex-col items-center justify-center h-48 text-muted-foreground">
+                            <p className="text-sm">No traffic sources recorded yet.</p>
+                          </div>
+                        );
+                      }
+                      const sourcesWithColors = sources.map(s => ({
                         ...s, name: s.source, value: s.percentage,
                         color: SOURCE_COLORS[s.source] || "#6b7280",
                       }));
@@ -283,18 +401,26 @@ export default function AnalyticsPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {trafficData.topPages.map((page) => (
-                          <TableRow key={page.page}>
-                            <TableCell className="font-mono text-xs text-violet-600">{page.page}</TableCell>
-                            <TableCell className="font-semibold">{page.views.toLocaleString()}</TableCell>
-                            <TableCell>
-                              <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${page.bounceRate > 50 ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}>
-                                {page.bounceRate}%
-                              </span>
+                        {(trafficData.topPages ?? []).length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={4} className="text-center py-6 text-muted-foreground">
+                              No page views recorded yet.
                             </TableCell>
-                            <TableCell className="text-muted-foreground">{page.avgTime}</TableCell>
                           </TableRow>
-                        ))}
+                        ) : (
+                          (trafficData.topPages ?? []).map((page) => (
+                            <TableRow key={page.page}>
+                              <TableCell className="font-mono text-xs text-violet-600">{page.page}</TableCell>
+                              <TableCell className="font-semibold">{(page.views ?? 0).toLocaleString()}</TableCell>
+                              <TableCell>
+                                <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${(page.bounceRate ?? 0) > 50 ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}>
+                                  {page.bounceRate ?? 0}%
+                                </span>
+                              </TableCell>
+                              <TableCell className="text-muted-foreground">{page.avgTime ?? "0m 0s"}</TableCell>
+                            </TableRow>
+                          ))
+                        )}
                       </TableBody>
                     </Table>
                   </CardContent>
@@ -361,7 +487,7 @@ export default function AnalyticsPage() {
                   <CardDescription>Monthly invoice revenue from subscriptions</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {revenueData.mrrChartData.length === 0 ? (
+                  {(revenueData.mrrChartData ?? []).length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-48 text-muted-foreground">
                       <BarChart3 size={32} className="mb-2 opacity-30" />
                       <p className="text-sm">No revenue data yet for this period.</p>
@@ -369,7 +495,7 @@ export default function AnalyticsPage() {
                     </div>
                   ) : (
                     <ResponsiveContainer width="100%" height={280}>
-                      <BarChart data={revenueData.mrrChartData} margin={{ top: 0, right: 5, left: -10, bottom: 0 }}>
+                      <BarChart data={revenueData.mrrChartData ?? []} margin={{ top: 0, right: 5, left: -10, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(220 13% 91%)" />
                         <XAxis dataKey="month" tick={{ fontSize: 12 }} />
                         <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => formatInr(v)} />
@@ -392,14 +518,14 @@ export default function AnalyticsPage() {
                     <CardDescription>Which products are generating the most revenue</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    {revenueData.revenueByProduct.length === 0 ? (
+                    {(revenueData.revenueByProduct ?? []).length === 0 ? (
                       <div className="flex flex-col items-center justify-center h-40 text-muted-foreground">
                         <Package size={28} className="mb-2 opacity-30" />
                         <p className="text-sm">No product revenue data yet.</p>
                       </div>
                     ) : (
                       <div className="space-y-3">
-                        {revenueData.revenueByProduct.map((p, i) => {
+                        {(revenueData.revenueByProduct ?? []).map((p, i) => {
                           const pct = revenueData.totalSubRevenuePaise > 0 
                             ? Math.round((p.total / revenueData.totalSubRevenuePaise) * 100) 
                             : 0;

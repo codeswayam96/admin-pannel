@@ -72,6 +72,7 @@ function formatBytes(bytes: number): string {
 }
 
 export default function HealthPage() {
+  const [mounted, setMounted] = useState(false);
   const [data, setData] = useState<HealthData | null>(null);
   const [loading, setLoading] = useState(true);
   const [autoRefresh, setAutoRefresh] = useState(true);
@@ -89,13 +90,21 @@ export default function HealthPage() {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => { 
+    if (mounted) load(); 
+  }, [load, mounted]);
 
   useEffect(() => {
-    if (!autoRefresh) return;
+    if (!autoRefresh || !mounted) return;
     const interval = setInterval(load, 30000);
     return () => clearInterval(interval);
-  }, [autoRefresh, load]);
+  }, [autoRefresh, load, mounted]);
+
+  if (!mounted) return null;
 
   const overall = data?.overall ?? "healthy";
   const overallCfg = STATUS_CFG[overall];
@@ -243,14 +252,14 @@ export default function HealthPage() {
                       <tr key={q.name} className="hover:bg-muted/20">
                         <td className="px-4 py-3 font-mono text-sm font-medium">{q.name}</td>
                         <td className="px-4 py-3">
-                          <span className={`font-semibold ${q.waiting > 100 ? "text-amber-600" : "text-foreground"}`}>{q.waiting.toLocaleString()}</span>
+                          <span className={`font-semibold ${(q.waiting ?? 0) > 100 ? "text-amber-600" : "text-foreground"}`}>{(q.waiting ?? 0).toLocaleString()}</span>
                         </td>
                         <td className="px-4 py-3">
-                          <span className={`font-semibold ${q.active > 0 ? "text-blue-600" : "text-muted-foreground"}`}>{q.active.toLocaleString()}</span>
+                          <span className={`font-semibold ${(q.active ?? 0) > 0 ? "text-blue-600" : "text-muted-foreground"}`}>{(q.active ?? 0).toLocaleString()}</span>
                         </td>
-                        <td className="px-4 py-3 text-emerald-600 font-semibold">{q.completed.toLocaleString()}</td>
+                        <td className="px-4 py-3 text-emerald-600 font-semibold">{(q.completed ?? 0).toLocaleString()}</td>
                         <td className="px-4 py-3">
-                          <span className={`font-semibold ${q.failed > 0 ? "text-red-600" : "text-muted-foreground"}`}>{q.failed.toLocaleString()}</span>
+                          <span className={`font-semibold ${(q.failed ?? 0) > 0 ? "text-red-600" : "text-muted-foreground"}`}>{(q.failed ?? 0).toLocaleString()}</span>
                         </td>
                       </tr>
                     ))}

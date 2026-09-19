@@ -38,6 +38,7 @@ interface Product {
   features: string | null;
   planTier: string | null;
   isFreeTier: number | null;
+  creditPoints: number | null;
   usageLimits: string | null;
   subscribers: number | null;
   createdAt: string;
@@ -56,6 +57,7 @@ interface ProductForm {
   icon: string;
   price: string;
   subscribers: string;
+  creditPoints: string;
   // Pricing
   monthlyPriceInr: string;
   yearlyPriceInr: string;
@@ -88,6 +90,7 @@ const planTierColors: Record<string, string> = {
 const emptyForm: ProductForm = {
   saasId: "", productFamily: "", name: "", tag: "", description: "", domain: "",
   status: "active", featured: "no", icon: "", price: "", subscribers: "",
+  creditPoints: "",
   monthlyPriceInr: "", yearlyPriceInr: "",
   monthlyPriceUsd: "", yearlyPriceUsd: "",
   planTier: "standard", isFreeTier: false, trialDays: "0",
@@ -195,6 +198,7 @@ export default function SaasProductsPage() {
       icon: p.icon || "",
       price: p.price != null ? String(p.price) : "",
       subscribers: p.subscribers != null ? String(p.subscribers) : "",
+      creditPoints: p.creditPoints != null ? String(p.creditPoints) : "",
       // Pricing — display in human-readable units (divide by 100)
       monthlyPriceInr: formatPrice(p.monthlyPriceInr),
       yearlyPriceInr: formatPrice(p.yearlyPriceInr),
@@ -252,6 +256,7 @@ export default function SaasProductsPage() {
         icon: form.icon.trim() || undefined,
         price: form.price ? Number(form.price) : undefined,
         subscribers: form.subscribers ? Number(form.subscribers) : undefined,
+        creditPoints: form.creditPoints ? Number(form.creditPoints) : 0,
         // Pricing — convert from human-readable ₹/$ back to paise/cents
         // If Free tier, force to 0
         monthlyPriceInr: form.planTier === "free" ? 0 : parsePrice(form.monthlyPriceInr),
@@ -504,8 +509,8 @@ export default function SaasProductsPage() {
 
                           {/* Pricing block */}
                           <div className="rounded-lg bg-muted/40 border p-3 space-y-1.5">
-                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Pricing</p>
-                            <div className="grid grid-cols-2 gap-2 text-sm">
+                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Pricing &amp; Benefits</p>
+                            <div className="grid grid-cols-3 gap-2 text-sm">
                               <div>
                                 <p className="text-xs text-muted-foreground">Monthly (INR)</p>
                                 <p className="font-semibold">{monthlyInr ? `₹${monthlyInr.toLocaleString("en-IN")}` : <span className="text-muted-foreground text-xs">—</span>}</p>
@@ -513,6 +518,10 @@ export default function SaasProductsPage() {
                               <div>
                                 <p className="text-xs text-muted-foreground">Yearly (INR)</p>
                                 <p className="font-semibold">{yearlyInr ? `₹${yearlyInr.toLocaleString("en-IN")}` : <span className="text-muted-foreground text-xs">—</span>}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs text-muted-foreground">Credits</p>
+                                <p className="font-semibold">{product.creditPoints ? `+${product.creditPoints.toLocaleString()}` : <span className="text-muted-foreground text-xs">—</span>}</p>
                               </div>
                             </div>
                           </div>
@@ -727,7 +736,7 @@ export default function SaasProductsPage() {
                 <h3 className="text-sm font-semibold">Plan Configuration</h3>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <div className="space-y-1.5">
                   <Label>Plan Tier</Label>
                   <Select value={form.planTier} onValueChange={v => setField("planTier", v)}>
@@ -762,6 +771,17 @@ export default function SaasProductsPage() {
                     onChange={e => setField("trialDays", e.target.value)}
                   />
                   <p className="text-[10px] text-muted-foreground">0 = no trial. Users get full access for this many days before billing starts.</p>
+                </div>
+                <div className="space-y-1.5 col-span-3">
+                  <Label>Bundled Credit Points</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    value={form.creditPoints ?? ""}
+                    onChange={e => setField("creditPoints", e.target.value)}
+                  />
+                  <p className="text-[10px] text-muted-foreground">Points credited to user wallet upon purchase/renewal.</p>
                 </div>
               </div>
 

@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell
 } from "recharts";
@@ -24,6 +25,7 @@ interface ProductAnalyticsData {
   productShare: { name: string; value: number; color: string }[];
   perProduct: { id: number; name: string; saasId: string; mrr: number; subscribers: number; churn: number; growth: number; arpu: number; color: string }[];
   productKeys: { key: string; name: string }[];
+  range?: string;
 }
 
 function formatInr(paise: number) {
@@ -36,38 +38,39 @@ function formatInr(paise: number) {
 
 export default function SaasAnalyticsPage() {
   const [data, setData] = useState<ProductAnalyticsData | null>(null);
+  const [range, setRange] = useState<string>("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const load = () => {
+  const load = useCallback((selectedRange = range) => {
     setLoading(true);
     setError(null);
-    fetchProductAnalytics()
+    fetchProductAnalytics(selectedRange)
       .then(setData)
       .catch((err) => setError(err.message || "Failed to load analytics"))
       .finally(() => setLoading(false));
-  };
+  }, [range]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(range); }, [range, load]);
 
-  if (loading) return (
+  if (loading && !data) return (
     <div className="flex items-center justify-center h-64">
       <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
     </div>
   );
 
-  if (error) return <ErrorState error={error} onRetry={load} />;
-  if (!data) return <ErrorState error="Unable to load product analytics." onRetry={load} />;
+  if (error) return <ErrorState error={error} onRetry={() => load(range)} />;
+  if (!data) return <ErrorState error="Unable to load product analytics." onRetry={() => load(range)} />;
 
-  const totalMrr = data.totalMrr;
-  const totalSubs = data.totalSubs;
-  const avgChurn = data.perProduct.length > 0
-    ? (data.perProduct.reduce((s, p) => s + p.churn, 0) / data.perProduct.length).toFixed(1)
+  const totalMrr = data.totalMrr ?? 0;
+  const totalSubs = data.totalSubs ?? 0;
+  const avgChurn = data.perProduct && data.perProduct.length > 0
+    ? (data.perProduct.reduce((s, p) => s + (p.churn ?? 0), 0) / data.perProduct.length).toFixed(1)
     : "0.0";
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" asChild>
             <Link href="/saas-products"><ArrowLeft size={18} /></Link>
@@ -77,9 +80,21 @@ export default function SaasAnalyticsPage() {
             <p className="text-muted-foreground mt-1">MRR, churn, and subscriber metrics</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Badge variant="secondary" className="gap-1.5 px-3 py-1"><BarChart2 size={13} /> Live Data</Badge>
-          <Button variant="outline" size="sm" onClick={load}><RefreshCw size={14} /></Button>
+        <div className="flex items-center gap-2.5">
+          <Select value={range} onValueChange={(val) => { setRange(val); }}>
+            <SelectTrigger className="w-36 bg-background">
+              <SelectValue placeholder="Select period" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Time (Live)</SelectItem>
+              <SelectItem value="30d">Last 30 Days</SelectItem>
+              <SelectItem value="3m">Last 3 Months</SelectItem>
+              <SelectItem value="6m">Last 6 Months</SelectItem>
+              <SelectItem value="12m">Last 12 Months</SelectItem>
+            </SelectContent>
+          </Select>
+          <Badge variant="secondary" className="gap-1.5 px-3 py-1 hidden sm:inline-flex"><BarChart2 size={13} /> Live Data</Badge>
+          <Button variant="outline" size="sm" onClick={() => load(range)} title="Refresh data"><RefreshCw size={14} className={loading ? "animate-spin" : ""} /></Button>
         </div>
       </div>
 
@@ -216,28 +231,34 @@ export default function SaasAnalyticsPage() {
             <Card className="xl:col-span-2">
               <CardHeader><CardTitle>Per-Product Metrics</CardTitle></CardHeader>
               <CardContent className="space-y-4">
-                {data.perProduct.map((p) => (
-                  <div key={p.id} className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium">{p.name}</span>
-                        <Badge variant={p.growth > 0 ? "success" : "warning"} className="text-xs gap-1">
-                          {p.growth > 0 ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
-                          {Math.abs(p.growth)}%
-                        </Badge>
+                {data.perProduct.map((p) => {
+                  const pGrowth = p.growth ?? 0;
+                  const pChurn = p.churn ?? 0;
+                  const pMrr = p.mrr ?? 0;
+                  const pArpu = p.arpu ?? 0;
+                  return (
+                    <div key={p.id} className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium">{p.name}</span>
+                          <Badge variant={pGrowth >= 0 ? "success" : "warning"} className="text-xs gap-1">
+                            {pGrowth >= 0 ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
+                            {Math.abs(pGrowth)}%
+                          </Badge>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-sm font-bold">{formatInr(pMrr)} MRR</span>
+                          <span className="text-xs text-muted-foreground ml-2">· {p.subscribers} subs</span>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <span className="text-sm font-bold">{formatInr(p.mrr)} MRR</span>
-                        <span className="text-xs text-muted-foreground ml-2">· {p.subscribers} subs</span>
+                      <Progress value={totalMrr > 0 ? (pMrr / totalMrr) * 100 : 0} className="h-1.5" style={{ "--progress-color": p.color } as any} />
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>ARPU {formatInr(pArpu)}</span>
+                        <span>Churn {pChurn}%</span>
                       </div>
                     </div>
-                    <Progress value={totalMrr > 0 ? (p.mrr / totalMrr) * 100 : 0} className="h-1.5" style={{ "--progress-color": p.color } as any} />
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>ARPU {formatInr(p.arpu * 100)}</span>
-                      <span>Churn {p.churn}%</span>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </CardContent>
             </Card>
           </div>

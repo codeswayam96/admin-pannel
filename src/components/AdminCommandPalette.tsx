@@ -23,12 +23,16 @@ import {
   ToggleLeft,
   HeartPulse,
   Bell,
+  Download,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import {
   Dialog,
   DialogContent,
 } from '@/components/ui/dialog';
+import { exportToCSV } from '@/lib/export/csv-exporter';
+import { fetchUsers, fetchSubscriptions, api } from '@/lib/api';
+import { toast } from 'sonner';
 
 interface CommandItem {
   id: string;
@@ -201,6 +205,93 @@ export function AdminCommandPalette() {
       href: '/saas-products/create',
       icon: Plus,
       keywords: ['new', 'create', 'product'],
+      group: 'actions',
+    },
+    {
+      id: 'export-users',
+      label: 'Export Users (CSV)',
+      description: 'Download full user directory as CSV',
+      icon: Download,
+      keywords: ['export', 'download', 'users', 'csv', 'spreadsheet'],
+      action: async () => {
+        try {
+          toast.loading('Fetching users...', { id: 'export-cmd' });
+          const users = await fetchUsers();
+          const rows = users.map((u: any) => ({
+            id: u.id,
+            name: u.name || '—',
+            email: u.email,
+            role: u.role,
+            status: u.status || 'active',
+            lastActive: u.lastActiveAt ? new Date(u.lastActiveAt).toLocaleString() : 'Never',
+            joinedDate: u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—',
+          }));
+          exportToCSV(rows, 'users_export');
+          toast.success(`Exported ${rows.length} users to CSV`, { id: 'export-cmd' });
+        } catch {
+          toast.error('Failed to export users', { id: 'export-cmd' });
+        }
+      },
+      group: 'actions',
+    },
+    {
+      id: 'export-transactions',
+      label: 'Export Credit Transactions (CSV)',
+      description: 'Download credit transactions ledger as CSV',
+      icon: Download,
+      keywords: ['export', 'download', 'transactions', 'credits', 'csv', 'ledger'],
+      action: async () => {
+        try {
+          toast.loading('Fetching transactions...', { id: 'export-cmd' });
+          const txs = await api('/admin/credits/transactions?limit=1000');
+          const rows = (txs || []).map((t: any) => ({
+            id: t.id,
+            user: t.userName || '—',
+            email: t.userEmail || '—',
+            type: t.type,
+            points: t.points,
+            balanceAfter: t.balanceAfter,
+            description: t.description,
+            saasApp: t.saasId || 'General',
+            paymentId: t.razorpayPaymentId || '—',
+            date: new Date(t.createdAt).toLocaleString('en-IN'),
+          }));
+          exportToCSV(rows, 'credit_transactions');
+          toast.success(`Exported ${rows.length} transactions to CSV`, { id: 'export-cmd' });
+        } catch {
+          toast.error('Failed to export transactions', { id: 'export-cmd' });
+        }
+      },
+      group: 'actions',
+    },
+    {
+      id: 'export-subscriptions',
+      label: 'Export Subscriptions (CSV)',
+      description: 'Download subscriptions directory as CSV',
+      icon: Download,
+      keywords: ['export', 'download', 'subscriptions', 'billing', 'csv'],
+      action: async () => {
+        try {
+          toast.loading('Fetching subscriptions...', { id: 'export-cmd' });
+          const subs = await fetchSubscriptions();
+          const rows = (subs || []).map((s: any) => ({
+            id: s.id,
+            user: s.userName || '—',
+            email: s.userEmail || '—',
+            planType: s.planType,
+            product: s.productName || s.bundleName || '—',
+            cycle: s.billingCycle || '—',
+            amountInr: s.amount != null ? s.amount / 100 : 0,
+            status: s.status,
+            expiresAt: s.expiresAt ? new Date(s.expiresAt).toLocaleDateString() : 'Never',
+            createdAt: s.createdAt ? new Date(s.createdAt).toLocaleDateString() : '—',
+          }));
+          exportToCSV(rows, 'subscriptions_export');
+          toast.success(`Exported ${rows.length} subscriptions to CSV`, { id: 'export-cmd' });
+        } catch {
+          toast.error('Failed to export subscriptions', { id: 'export-cmd' });
+        }
+      },
       group: 'actions',
     },
 

@@ -1000,7 +1000,7 @@ export default function NotificationsPage() {
                             ) : (
                                 <div className="space-y-3 max-h-[600px] overflow-y-auto pr-1">
                                     {filteredCampaigns.map((c) => (
-                                        <CampaignRow key={c.id} campaign={c} onDelete={handleDelete} />
+                                        <CampaignRow key={c.id} campaign={c} onDelete={requestDelete} />
                                     ))}
                                 </div>
                             )}
@@ -1033,6 +1033,19 @@ export default function NotificationsPage() {
                     </div>
                 </div>
             </div>
+
+            <ConfirmDialog
+                open={confirmDelete !== null}
+                onOpenChange={(open) => !open && setConfirmDelete(null)}
+                title="Delete campaign?"
+                description="This permanently removes the campaign and all its delivery history. This action cannot be undone."
+                confirmLabel="Delete"
+                variant="destructive"
+                onConfirm={() => {
+                    if (confirmDelete !== null) handleDelete(confirmDelete);
+                    setConfirmDelete(null);
+                }}
+            />
         </div>
     );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Loader2, RefreshCw, Users, FileText, ShoppingBag, CreditCard, Activity, Filter, Coins } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -39,16 +39,16 @@ export default function ActivityPage() {
   const [typeFilter, setTypeFilter] = useState("all");
   const [limit, setLimit] = useState(50);
 
-  const load = (l = limit) => {
+  const load = useCallback(() => {
     setLoading(true);
     setError(null);
-    fetchActivity(l)
+    fetchActivity(limit)
       .then(setActivities)
       .catch((err) => setError(err.message || "Failed to load activity"))
       .finally(() => setLoading(false));
-  };
+  }, [limit]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   const filtered = activities.filter(a => typeFilter === "all" || a.type === typeFilter);
 
@@ -69,7 +69,7 @@ export default function ActivityPage() {
           <p className="text-muted-foreground mt-1">Real-time history of all platform events</p>
         </div>
         <div className="flex items-center gap-2">
-          <Select value={String(limit)} onValueChange={(v) => { setLimit(Number(v)); load(Number(v)); }}>
+          <Select value={String(limit)} onValueChange={(v) => setLimit(Number(v))}>
             <SelectTrigger className="w-28">
               <SelectValue />
             </SelectTrigger>

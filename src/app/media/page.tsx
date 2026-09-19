@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { fetchMedia, createMedia, deleteMedia } from "@/lib/api";
 import { ErrorState } from "@/components/ErrorState";
 import { usePagination, Pagination } from "@/components/Pagination";
+import { useUploadThing } from "@/lib/uploadthing";
 
 interface MediaItem {
   id: number;
@@ -29,6 +30,7 @@ const emptyForm = { name: "", url: "", size: "", mimeType: "image/jpeg", provide
 
 const providerInfo: Record<string, { label: string; icon: any; status: "active" | "coming-soon" }> = {
   url: { label: "URL / Link", icon: Link2, status: "active" },
+  uploadthing: { label: "Uploadthing", icon: Upload, status: "active" },
   s3: { label: "Amazon S3", icon: Cloud, status: "coming-soon" },
   r2: { label: "Cloudflare R2", icon: Cloud, status: "coming-soon" },
 };
@@ -51,6 +53,13 @@ export default function MediaPage() {
   const [uploadDialog, setUploadDialog] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+  const { startUpload } = useUploadThing("mediaUploader", {
+    onUploadError: (error) => {
+      toast.error(`Uploadthing error: ${error.message}`);
+    }
+  });
 
   const load = () => {
     setLoading(true);
@@ -73,29 +82,106 @@ export default function MediaPage() {
     toast.success("URL copied to clipboard!");
   };
 
-  const handleUpload = async () => {
-    if (!form.url.trim()) { toast.error("URL is required"); return; }
-    if (!form.name.trim()) {
-      const parts = form.url.split("/");
-      setForm(p => ({ ...p, name: parts[parts.length - 1] || "media-file" }));
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 8 * 1024 * 1024) {
+      toast.error("File is too large (max 8MB)");
+      return;
     }
-    setSaving(true);
-    try {
-      const created = await createMedia({
-        name: form.name || form.url.split("/").pop() || "media-file",
-        url: form.url,
-        size: form.size,
-        mimeType: form.mimeType,
-        provider: form.provider,
+
+    setSelectedFile(file);
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64Url = event.target?.result as string;
+      
+      let sizeStr = "";
+      if (file.size < 1024) sizeStr = `${file.size} B`;
+      else if (file.size < 1024 * 1024) sizeStr = `${(file.size / 1024).toFixed(1)} KB`;
+      else sizeStr = `${(file.size / (1024 * 1024)).toFixed(1)} MB`;
+
+      setForm({
+        name: file.name,
+        url: base64Url,
+        size: sizeStr,
+        mimeType: file.type || "image/jpeg",
+        provider: "uploadthing",
       });
-      setMedia(prev => [created, ...prev]);
-      toast.success("Media added!");
-      setUploadDialog(false);
-      setForm(emptyForm);
-    } catch (err: any) {
-      toast.error(err.message || "Failed to add media");
+      toast.success(`File "${file.name}" ready for upload`);
+    };
+    reader.onerror = () => {
+      toast.error("Failed to read file");
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleUpload = async () => {
+    if (form.provider === "uploadthing") {
+      if (!selectedFile) {
+        toast.error("Please select a file first");
+        return;
+      }
+      
+      setSaving(true);
+      try {
+        toast.info("Uploading file to Uploadthing...");
+        const uploadRes = await startUpload([selectedFile]);
+        
+        if (!uploadRes || uploadRes.length === 0) {
+          throw new Error("Upload failed. Make sure UPLOADTHING_TOKEN is set in apps/admin-panel/.env.local");
+        }
+        
+        const uploadedUrl = uploadRes[0].url;
+        toast.success("File uploaded to Uploadthing successfully!");
+        
+        const created = await createMedia({
+          name: form.name || selectedFile.name,
+          url: uploadedUrl,
+          size: form.size,
+          mimeType: selectedFile.type || form.mimeType,
+          provider: "uploadthing",
+        });
+        
+        setMedia(prev => [created, ...prev]);
+        toast.success("Media uploaded and added successfully!");
+        setUploadDialog(false);
+        setForm(emptyForm);
+        setSelectedFile(null);
+      } catch (err: any) {
+        toast.error(err.message || "Failed to upload to Uploadthing. Please check UPLOADTHING_TOKEN.");
+      } finally {
+        setSaving(false);
+      }
+    } else {
+      if (!form.url.trim()) {
+        toast.error("URL is required");
+        return;
+      }
+      if (!form.name.trim()) {
+        const parts = form.url.split("/");
+        setForm(p => ({ ...p, name: parts[parts.length - 1] || "media-file" }));
+      }
+      setSaving(true);
+      try {
+        const created = await createMedia({
+          name: form.name || form.url.split("/").pop() || "media-file",
+          url: form.url,
+          size: form.size,
+          mimeType: form.mimeType,
+          provider: "url",
+        });
+        setMedia(prev => [created, ...prev]);
+        toast.success("Media added!");
+        setUploadDialog(false);
+        setForm(emptyForm);
+      } catch (err: any) {
+        toast.error(err.message || "Failed to add media");
+      } finally {
+        setSaving(false);
+      }
     }
-    setSaving(false);
   };
 
   const handleDelete = async (id: number) => {
@@ -137,7 +223,7 @@ export default function MediaPage() {
       </div>
 
       {/* Storage providers status */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {Object.entries(providerInfo).map(([key, info]) => (
           <div key={key} className={`flex items-center gap-3 p-3 rounded-lg border ${info.status === "active" ? "border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/20" : "border-border bg-muted/30"}`}>
             <div className={`p-2 rounded-md ${info.status === "active" ? "bg-emerald-100 dark:bg-emerald-900/50" : "bg-muted"}`}>
@@ -265,30 +351,56 @@ export default function MediaPage() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Add Media</DialogTitle>
-            <DialogDescription>Add an image or file by URL. S3 and Cloudflare R2 support coming soon.</DialogDescription>
+            <DialogDescription>Add an image or asset to your library via URL or local file upload.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-1.5">
               <Label>Storage Provider</Label>
-              <Select value={form.provider} onValueChange={(v) => setForm(p => ({ ...p, provider: v }))}>
+              <Select value={form.provider} onValueChange={(v) => setForm({ ...emptyForm, provider: v })}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="url">🔗 URL / Link (Active)</SelectItem>
+                  <SelectItem value="uploadthing">☁️ Uploadthing (Active)</SelectItem>
                   <SelectItem value="s3" disabled>☁️ Amazon S3 (Coming Soon)</SelectItem>
                   <SelectItem value="r2" disabled>☁️ Cloudflare R2 (Coming Soon)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
-              <Label>File URL *</Label>
-              <Input placeholder="https://example.com/image.jpg" value={form.url} onChange={(e) => setForm(p => ({ ...p, url: e.target.value }))} />
-            </div>
+            {form.provider === "url" ? (
+              <div className="space-y-1.5">
+                <Label>File URL *</Label>
+                <Input placeholder="https://example.com/image.jpg" value={form.url} onChange={(e) => setForm(p => ({ ...p, url: e.target.value }))} />
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label>Upload File *</Label>
+                <div className="border-2 border-dashed rounded-lg p-6 hover:bg-muted/50 transition-colors text-center cursor-pointer relative">
+                  <input
+                    type="file"
+                    className="absolute inset-0 opacity-0 cursor-pointer"
+                    onChange={handleFileChange}
+                    accept="image/*,application/pdf,video/*"
+                  />
+                  <Upload className="mx-auto h-8 w-8 text-muted-foreground opacity-50 mb-2" />
+                  <p className="text-sm font-medium">Click or drag file to upload</p>
+                  <p className="text-xs text-muted-foreground mt-1">Supports images, PDF, and videos up to 8MB</p>
+                </div>
+                {form.url && (
+                  <div className="text-xs text-emerald-600 flex items-center gap-1.5 mt-1 font-medium">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    File loaded successfully
+                  </div>
+                )}
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label>Display Name</Label>
               <Input placeholder="hero-image.jpg" value={form.name} onChange={(e) => setForm(p => ({ ...p, name: e.target.value }))} />
-              <p className="text-xs text-muted-foreground">Leave blank to auto-detect from URL</p>
+              <p className="text-xs text-muted-foreground">
+                {form.provider === "uploadthing" ? "Automatically populated from file name" : "Leave blank to auto-detect from URL"}
+              </p>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">

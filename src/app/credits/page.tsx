@@ -19,6 +19,9 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { usePagination, Pagination } from "@/components/Pagination";
+import { ExportButton } from "@/components/dashboard/ExportButton";
+import { exportToCSV, exportToJSON } from "@/lib/export/csv-exporter";
+import { exportToPDF } from "@/lib/export/pdf-exporter";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -91,7 +94,7 @@ export default function CreditsPage() {
       const [p, f, t, u] = await Promise.all([
         api("/admin/credits/packs"),
         api("/admin/credits/features"),
-        api("/admin/credits/transactions"),
+        api("/admin/credits/transactions?limit=1000"),
         api("/admin/credits/users"),
       ]);
       setPacks(p); setFeatures(f); setTx(t); setUserBals(u);
@@ -224,6 +227,181 @@ export default function CreditsPage() {
   const totalSpent   = transactions.filter(t => t.type === "usage").reduce((s, t) => s + Math.abs(t.points), 0);
   const totalBalance = userBals.reduce((s, u) => s + u.balance, 0);
 
+  // ── Data Export Handlers ──────────────────────────────────────────────────
+
+  const handleExportTransactions = async (format: "csv" | "pdf" | "json") => {
+    if (transactions.length === 0) {
+      toast.error("No transactions to export");
+      return;
+    }
+    const data = transactions.map((t) => ({
+      id: t.id,
+      user: t.userName || "—",
+      email: t.userEmail || "—",
+      type: t.type,
+      points: t.points,
+      balanceAfter: t.balanceAfter,
+      description: t.description,
+      saasApp: t.saasId || "General",
+      paymentId: t.razorpayPaymentId || "—",
+      date: new Date(t.createdAt).toLocaleString("en-IN"),
+    }));
+
+    if (format === "csv") {
+      exportToCSV(data, "credit_transactions", [
+        { key: "id", header: "Tx ID" },
+        { key: "user", header: "User Name" },
+        { key: "email", header: "User Email" },
+        { key: "type", header: "Type" },
+        { key: "points", header: "Points" },
+        { key: "balanceAfter", header: "Balance After" },
+        { key: "description", header: "Description" },
+        { key: "saasApp", header: "SaaS App" },
+        { key: "paymentId", header: "Razorpay Payment ID" },
+        { key: "date", header: "Date" },
+      ]);
+      toast.success(`Exported ${data.length} transactions to CSV`);
+    } else if (format === "pdf") {
+      await exportToPDF(
+        data,
+        "credit_transactions",
+        [
+          { key: "id", header: "ID" },
+          { key: "user", header: "User" },
+          { key: "email", header: "Email" },
+          { key: "type", header: "Type" },
+          { key: "points", header: "Points" },
+          { key: "balanceAfter", header: "Balance" },
+          { key: "saasApp", header: "App" },
+          { key: "date", header: "Date" },
+        ],
+        {
+          title: "Credit Transactions Audit Log",
+          subtitle: `Total: ${data.length} records • Exported on ${new Date().toLocaleDateString()}`,
+        }
+      );
+      toast.success(`Exported ${data.length} transactions to PDF`);
+    } else if (format === "json") {
+      exportToJSON(data, "credit_transactions");
+      toast.success(`Exported ${data.length} transactions to JSON`);
+    }
+  };
+
+  const handleExportUserBalances = async (format: "csv" | "pdf" | "json") => {
+    if (userBals.length === 0) {
+      toast.error("No user balances to export");
+      return;
+    }
+    const data = userBals.map((u) => ({
+      userId: u.userId,
+      user: u.userName || "—",
+      email: u.userEmail || "—",
+      balance: u.balance,
+      lifetimeEarned: u.lifetimeEarned,
+      lifetimeSpent: u.lifetimeSpent,
+      lastUpdated: new Date(u.updatedAt).toLocaleString("en-IN"),
+    }));
+
+    if (format === "csv") {
+      exportToCSV(data, "user_credit_balances", [
+        { key: "userId", header: "User ID" },
+        { key: "user", header: "User Name" },
+        { key: "email", header: "User Email" },
+        { key: "balance", header: "Current Balance" },
+        { key: "lifetimeEarned", header: "Lifetime Earned" },
+        { key: "lifetimeSpent", header: "Lifetime Spent" },
+        { key: "lastUpdated", header: "Last Updated" },
+      ]);
+      toast.success(`Exported ${data.length} user balances to CSV`);
+    } else if (format === "pdf") {
+      await exportToPDF(
+        data,
+        "user_credit_balances",
+        [
+          { key: "userId", header: "User ID" },
+          { key: "user", header: "Name" },
+          { key: "email", header: "Email" },
+          { key: "balance", header: "Balance" },
+          { key: "lifetimeEarned", header: "Earned" },
+          { key: "lifetimeSpent", header: "Spent" },
+          { key: "lastUpdated", header: "Updated" },
+        ],
+        {
+          title: "User Credit Wallets Report",
+          subtitle: `Total: ${data.length} wallets • Exported on ${new Date().toLocaleDateString()}`,
+        }
+      );
+      toast.success(`Exported ${data.length} user balances to PDF`);
+    } else if (format === "json") {
+      exportToJSON(data, "user_credit_balances");
+      toast.success(`Exported ${data.length} user balances to JSON`);
+    }
+  };
+
+  const handleExportPacks = async (format: "csv" | "pdf" | "json") => {
+    if (packs.length === 0) {
+      toast.error("No credit packs to export");
+      return;
+    }
+    const data = packs.map((p) => ({
+      id: p.id,
+      name: p.name,
+      description: p.description || "—",
+      points: p.points,
+      bonusPoints: p.bonusPoints ?? 0,
+      priceInr: p.priceInr / 100,
+      priceUsd: p.priceUsd ? p.priceUsd / 100 : "—",
+      status: p.status,
+      isPopular: p.isPopular ? "Yes" : "No",
+    }));
+
+    if (format === "csv") {
+      exportToCSV(data, "credit_packs");
+      toast.success(`Exported ${data.length} packs to CSV`);
+    } else if (format === "pdf") {
+      await exportToPDF(data, "credit_packs", undefined, { title: "Credit Packs Catalog" });
+      toast.success(`Exported ${data.length} packs to PDF`);
+    } else {
+      exportToJSON(data, "credit_packs");
+      toast.success(`Exported ${data.length} packs to JSON`);
+    }
+  };
+
+  const handleExportFeatures = async (format: "csv" | "pdf" | "json") => {
+    if (features.length === 0) {
+      toast.error("No feature costs to export");
+      return;
+    }
+    const data = features.map((f) => ({
+      id: f.id,
+      saasId: f.saasId,
+      featureKey: f.featureKey,
+      featureName: f.featureName,
+      pointCost: f.pointCost,
+      category: f.category,
+      isActive: f.isActive ? "Yes" : "No",
+      showOnWebsite: f.showOnWebsite ? "Yes" : "No",
+    }));
+
+    if (format === "csv") {
+      exportToCSV(data, "feature_costs");
+      toast.success(`Exported ${data.length} features to CSV`);
+    } else if (format === "pdf") {
+      await exportToPDF(data, "feature_costs", undefined, { title: "Feature Credit Costs" });
+      toast.success(`Exported ${data.length} features to PDF`);
+    } else {
+      exportToJSON(data, "feature_costs");
+      toast.success(`Exported ${data.length} features to JSON`);
+    }
+  };
+
+  const handleExportCurrentTab = (format: "csv" | "pdf" | "json") => {
+    if (tab === "transactions") return handleExportTransactions(format);
+    if (tab === "users") return handleExportUserBalances(format);
+    if (tab === "packs") return handleExportPacks(format);
+    if (tab === "features") return handleExportFeatures(format);
+  };
+
   // ── Tabs ───────────────────────────────────────────────────────────────────
 
   const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
@@ -241,7 +419,19 @@ export default function CreditsPage() {
           <h1 className="text-3xl font-bold tracking-tight">Credits Management</h1>
           <p className="text-muted-foreground mt-1">Manage credit packs, feature costs, and user balances</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <ExportButton
+            onExportCSV={() => handleExportCurrentTab("csv")}
+            onExportPDF={() => handleExportCurrentTab("pdf")}
+            onExportJSON={() => handleExportCurrentTab("json")}
+            label={`Export ${tab === "transactions" ? "Transactions" : tab === "users" ? "Balances" : tab === "packs" ? "Packs" : "Features"}`}
+            count={
+              tab === "transactions" ? transactions.length :
+              tab === "users" ? userBals.length :
+              tab === "packs" ? packs.length :
+              features.length
+            }
+          />
           {tab === "packs"    && <Button onClick={openCreatePack} className="gap-2"><Plus size={15} /> Add Pack</Button>}
           {tab === "features" && <Button onClick={openCreateFc}   className="gap-2"><Plus size={15} /> Add Feature Cost</Button>}
         </div>

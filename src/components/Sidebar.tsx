@@ -34,6 +34,7 @@ const navGroups = [
     items: [
       { href: "/saas-products", icon: ShoppingBag, label: "SaaS Products" },
       { href: "/saas-products/analytics", icon: BarChart2, label: "Product Analytics" },
+      { href: "/usage", icon: Activity, label: "Usage Dashboard" },
       { href: "/subscriptions", icon: CreditCard, label: "Subscriptions" },
       { href: "/trials", icon: CalendarDays, label: "Trials" },
       { href: "/credits", icon: Coins, label: "Credits" },
@@ -66,7 +67,7 @@ export function Sidebar() {
   const [profile, setProfile] = useState<{ name?: string; email?: string; role?: string } | null>(null);
 
   useEffect(() => {
-    fetchProfile().then(setProfile).catch(() => {});
+    fetchProfile().then(setProfile).catch(() => { });
   }, []);
 
   const isActive = (href: string) => {

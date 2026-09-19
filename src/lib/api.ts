@@ -95,16 +95,18 @@ export async function inviteUser(email: string, role: string = "user") {
 }
 
 // ── Dashboard & Analytics ────────────────────
-export async function fetchDashboard() {
-    return apiFetch("/admin/dashboard");
+export async function fetchDashboard(period?: string) {
+    const qs = period && period !== 'all' ? `?period=${encodeURIComponent(period)}` : '';
+    return apiFetch(`/admin/dashboard${qs}`);
 }
 
 export async function fetchAnalytics(range: string = "30d") {
     return apiFetch(`/admin/analytics?range=${range}`);
 }
 
-export async function fetchProductAnalytics() {
-    return apiFetch("/admin/product-analytics");
+export async function fetchProductAnalytics(period?: string) {
+    const qs = period && period !== 'all' ? `?period=${encodeURIComponent(period)}` : '';
+    return apiFetch(`/admin/product-analytics${qs}`);
 }
 
 export async function fetchActivity(limit: number = 50, type?: string) {
@@ -295,6 +297,8 @@ export async function fetchAdminCoupons() {
 export async function createAdminCoupon(data: {
     code: string;
     pointsAwarded: number;
+    saasProductId?: number | null;
+    bundleId?: number | null;
     maxUses?: number;
     isActive?: number;
     expiresAt?: string | null;
@@ -308,6 +312,8 @@ export async function createAdminCoupon(data: {
 export async function updateAdminCoupon(id: number, data: Partial<{
     code: string;
     pointsAwarded: number;
+    saasProductId: number | null;
+    bundleId: number | null;
     maxUses: number;
     isActive: number;
     expiresAt: string | null;
@@ -440,6 +446,24 @@ export async function deleteNotificationCampaign(id: number): Promise<{ success:
     return apiFetch(`/admin/notifications/campaigns/${id}`, { method: "DELETE" });
 }
 
+// ── Usage Tracking ───────────────────────────────────────────────────────────
+
+export async function fetchAdminUsage(params?: { appId?: string; limit?: number }) {
+    const qs = new URLSearchParams();
+    if (params?.appId) qs.set('appId', params.appId);
+    if (params?.limit) qs.set('limit', String(params.limit));
+    const q = qs.toString();
+    return apiFetch(`/v1/usage/admin/summary${q ? `?${q}` : ''}`);
+}
+
+export async function fetchAdminAppUsage(appId: string, page = 1, limit = 50) {
+    return apiFetch(`/v1/usage/admin/app/${encodeURIComponent(appId)}?page=${page}&limit=${limit}`);
+}
+
+export async function fetchUserEntitlements(userId: number, appId: string) {
+    return apiFetch(`/v1/entitlements/user/${userId}?appId=${encodeURIComponent(appId)}`);
+}
+
 // ── Trial Periods ─────────────────────────────────────────────────────────────
 
 export async function fetchTrialSubscriptions() {
@@ -463,5 +487,31 @@ export async function extendTrial(subscriptionId: number, days: number) {
 
 export async function fetchSystemHealth() {
     return apiFetch("/health");
+}
+
+// ── Release Changelog Manager CRUD ──────────────────────────────────────────
+
+export async function fetchChangelogs() {
+    return apiFetch("/admin/changelog");
+}
+
+export async function createChangelog(data: Record<string, unknown>) {
+    return apiFetch("/admin/changelog", {
+        method: "POST",
+        body: JSON.stringify(data),
+    });
+}
+
+export async function updateChangelog(id: number, data: Record<string, unknown>) {
+    return apiFetch(`/admin/changelog/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+    });
+}
+
+export async function deleteChangelog(id: number) {
+    return apiFetch(`/admin/changelog/${id}`, {
+        method: "DELETE",
+    });
 }
 

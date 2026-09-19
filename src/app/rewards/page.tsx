@@ -15,13 +15,18 @@ import {
   fetchAdminCoupons,
   fetchAdminReferrals,
   updateAdminCoupon,
+  fetchProducts,
+  fetchBundles,
 } from "@/lib/api";
 import { usePagination, Pagination } from "@/components/Pagination";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type Coupon = {
   id: number;
   code: string;
   pointsAwarded: number;
+  saasProductId?: number | null;
+  bundleId?: number | null;
   maxUses: number;
   usesCount: number;
   isActive: number;
@@ -46,6 +51,8 @@ export default function RewardsPage() {
   const [loading, setLoading] = useState(true);
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [referrals, setReferrals] = useState<ReferralRow[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
+  const [bundles, setBundles] = useState<any[]>([]);
   const [summary, setSummary] = useState({ totalReferrals: 0, totalPointsAwarded: 0 });
   const [tab, setTab] = useState<"coupons" | "referrals">("coupons");
 
@@ -54,7 +61,10 @@ export default function RewardsPage() {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     code: "",
+    couponType: "points",
     pointsAwarded: "",
+    saasProductId: "",
+    bundleId: "",
     maxUses: "0",
     isActive: "1",
     expiresAt: "",
@@ -63,13 +73,17 @@ export default function RewardsPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [couponData, referralData] = await Promise.all([
+      const [couponData, referralData, productData, bundleData] = await Promise.all([
         fetchAdminCoupons(),
         fetchAdminReferrals(200),
+        fetchProducts().catch(() => []),
+        fetchBundles().catch(() => []),
       ]);
 
       setCoupons(couponData || []);
       setReferrals(referralData?.items || []);
+      setProducts(productData || []);
+      setBundles(bundleData || []);
       setSummary({
         totalReferrals: referralData?.summary?.totalReferrals || 0,
         totalPointsAwarded: referralData?.summary?.totalPointsAwarded || 0,
@@ -93,15 +107,33 @@ export default function RewardsPage() {
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ code: "", pointsAwarded: "", maxUses: "0", isActive: "1", expiresAt: "" });
+    setForm({
+      code: "",
+      couponType: "points",
+      pointsAwarded: "",
+      saasProductId: "",
+      bundleId: "",
+      maxUses: "0",
+      isActive: "1",
+      expiresAt: "",
+    });
     setOpenDialog(true);
   };
 
   const openEdit = (coupon: Coupon) => {
     setEditing(coupon);
+    let type = "points";
+    if (coupon.saasProductId) {
+      type = "subscription";
+    } else if (coupon.bundleId) {
+      type = "bundle";
+    }
     setForm({
       code: coupon.code,
-      pointsAwarded: String(coupon.pointsAwarded),
+      couponType: type,
+      pointsAwarded: String(coupon.pointsAwarded || 0),
+      saasProductId: coupon.saasProductId ? String(coupon.saasProductId) : "",
+      bundleId: coupon.bundleId ? String(coupon.bundleId) : "",
       maxUses: String(coupon.maxUses || 0),
       isActive: String(coupon.isActive ?? 1),
       expiresAt: coupon.expiresAt ? new Date(coupon.expiresAt).toISOString().slice(0, 16) : "",
@@ -110,8 +142,21 @@ export default function RewardsPage() {
   };
 
   const saveCoupon = async () => {
-    if (!form.code.trim() || !form.pointsAwarded) {
-      toast.error("Code and points are required");
+    if (!form.code.trim()) {
+      toast.error("Coupon code is required");
+      return;
+    }
+
+    if (form.couponType === "points" && !form.pointsAwarded) {
+      toast.error("Points awarded is required");
+      return;
+    }
+    if (form.couponType === "subscription" && !form.saasProductId) {
+      toast.error("Please select a SaaS Product");
+      return;
+    }
+    if (form.couponType === "bundle" && !form.bundleId) {
+      toast.error("Please select a Subscription Bundle");
       return;
     }
 
@@ -119,7 +164,9 @@ export default function RewardsPage() {
     try {
       const payload = {
         code: form.code.trim().toUpperCase(),
-        pointsAwarded: Number(form.pointsAwarded),
+        pointsAwarded: form.couponType === "points" ? Number(form.pointsAwarded) : 0,
+        saasProductId: form.couponType === "subscription" ? Number(form.saasProductId) : null,
+        bundleId: form.couponType === "bundle" ? Number(form.bundleId) : null,
         maxUses: Number(form.maxUses || 0),
         isActive: Number(form.isActive || 1),
         expiresAt: form.expiresAt ? new Date(form.expiresAt).toISOString() : null,
@@ -186,7 +233,7 @@ export default function RewardsPage() {
           <table className="w-full text-sm min-w-[600px]">
             <thead className="bg-muted/50 border-b">
               <tr>
-                {['Code', 'Points', 'Usage', 'Expires', 'Status', 'Actions'].map((h) => (
+                {['Code', 'Benefit', 'Usage', 'Expires', 'Status', 'Actions'].map((h) => (
                   <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">{h}</th>
                 ))}
               </tr>
@@ -197,7 +244,19 @@ export default function RewardsPage() {
               ) : couponPagination.paginated.map((c) => (
                 <tr key={c.id} className="border-b last:border-0">
                   <td className="px-4 py-3 font-mono font-semibold">{c.code}</td>
-                  <td className="px-4 py-3">{c.pointsAwarded}</td>
+                  <td className="px-4 py-3">
+                    {c.saasProductId ? (
+                      <Badge variant="outline" className="text-violet-700 border-violet-200 bg-violet-50">
+                        Free Plan: {products.find((p) => p.id === c.saasProductId)?.name || `Product #${c.saasProductId}`}
+                      </Badge>
+                    ) : c.bundleId ? (
+                      <Badge variant="outline" className="text-blue-700 border-blue-200 bg-blue-50">
+                        Free Bundle: {bundles.find((b) => b.id === c.bundleId)?.name || `Bundle #${c.bundleId}`}
+                      </Badge>
+                    ) : (
+                      <span className="font-medium text-emerald-700">+{c.pointsAwarded} points</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3">{c.usesCount}{c.maxUses > 0 ? ` / ${c.maxUses}` : " / Unlimited"}</td>
                   <td className="px-4 py-3">{c.expiresAt ? new Date(c.expiresAt).toLocaleString() : 'Never'}</td>
                   <td className="px-4 py-3">
@@ -272,25 +331,87 @@ export default function RewardsPage() {
               <Label>Coupon Code</Label>
               <Input value={form.code} onChange={(e) => setForm((p) => ({ ...p, code: e.target.value.toUpperCase() }))} placeholder="WELCOME50" />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Coupon Type</Label>
+              <Select
+                value={form.couponType}
+                onValueChange={(v) => setForm((p) => ({ ...p, couponType: v }))}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="points">Points Pack</SelectItem>
+                  <SelectItem value="subscription">Free SaaS Subscription</SelectItem>
+                  <SelectItem value="bundle">Free Multi-App Bundle</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {form.couponType === "points" && (
               <div>
                 <Label>Points Awarded</Label>
-                <Input type="number" min={1} value={form.pointsAwarded} onChange={(e) => setForm((p) => ({ ...p, pointsAwarded: e.target.value }))} />
+                <Input type="number" min={1} value={form.pointsAwarded} onChange={(e) => setForm((p) => ({ ...p, pointsAwarded: e.target.value }))} placeholder="e.g. 500" />
               </div>
+            )}
+            {form.couponType === "subscription" && (
+              <div>
+                <Label>SaaS Product (Plan)</Label>
+                <Select
+                  value={form.saasProductId}
+                  onValueChange={(v) => setForm((p) => ({ ...p, saasProductId: v }))}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select SaaS Product" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {products.map((p) => (
+                      <SelectItem key={p.id} value={String(p.id)}>
+                        {p.name} ({p.creditPoints || 0} bundled points)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Redeeming this coupon activates a free monthly plan and awards the plan's bundled points.
+                </p>
+              </div>
+            )}
+            {form.couponType === "bundle" && (
+              <div>
+                <Label>Subscription Bundle</Label>
+                <Select
+                  value={form.bundleId}
+                  onValueChange={(v) => setForm((p) => ({ ...p, bundleId: v }))}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select Subscription Bundle" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {bundles.map((b) => (
+                      <SelectItem key={b.id} value={String(b.id)}>
+                        {b.name} ({b.creditPoints || 0} bundled points)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Redeeming this coupon activates a free monthly multi-app bundle and awards its bundled points.
+                </p>
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Max Uses (0 = unlimited)</Label>
                 <Input type="number" min={0} value={form.maxUses} onChange={(e) => setForm((p) => ({ ...p, maxUses: e.target.value }))} />
               </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Status (1 active / 0 inactive)</Label>
                 <Input type="number" min={0} max={1} value={form.isActive} onChange={(e) => setForm((p) => ({ ...p, isActive: e.target.value }))} />
               </div>
-              <div>
-                <Label>Expires At (optional)</Label>
-                <Input type="datetime-local" value={form.expiresAt} onChange={(e) => setForm((p) => ({ ...p, expiresAt: e.target.value }))} />
-              </div>
+            </div>
+            <div>
+              <Label>Expires At (optional)</Label>
+              <Input type="datetime-local" value={form.expiresAt} onChange={(e) => setForm((p) => ({ ...p, expiresAt: e.target.value }))} />
             </div>
           </div>
           <DialogFooter>

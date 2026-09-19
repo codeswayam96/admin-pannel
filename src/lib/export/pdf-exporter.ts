@@ -136,6 +136,9 @@ export async function exportToPDF<T extends Record<string, unknown>>(
         text = String(value).substring(0, 30);
       }
 
+      // Replace unicode currency symbol which is not supported by standard Helvetica font
+      text = text.replace(/₹/g, 'INR ');
+
       doc.text(text, x, currentY + rowHeight - 2, { maxWidth: colWidth - cellPadding * 2 });
     });
 

@@ -33,8 +33,8 @@ export function exportToCSV<T extends Record<string, unknown>>(
       .join(',')
   );
 
-  // Combine header and rows
-  const csv = [headers, ...rows].join('\n');
+  // Combine header and rows with UTF-8 BOM for proper Excel / international character support
+  const csv = '\uFEFF' + [headers, ...rows].join('\n');
 
   // Create blob and download
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -64,9 +64,9 @@ export function formatDateForExport(date: Date | string): string {
 /**
  * Export data to JSON format
  */
-export function exportToJSON<T>(data: T[], filename: string): void {
+export function exportToJSON<T>(data: T, filename: string): void {
   const json = JSON.stringify(data, null, 2);
-  const blob = new Blob([json], { type: 'application/json' });
+  const blob = new Blob([json], { type: 'application/json;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.setAttribute('href', url);
