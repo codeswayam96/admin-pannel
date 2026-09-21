@@ -60,12 +60,27 @@ interface Product { id: number; name: string; saasId: string; price: number | nu
 const statusColors: Record<string, string> = {
   active: "bg-emerald-100 text-emerald-700",
   past_due: "bg-amber-100 text-amber-700",
+  expired: "bg-amber-100 text-amber-700",
   canceled: "bg-red-100 text-red-700",
+  pending_cancellation: "bg-orange-100 text-orange-700",
 };
+
+export function isSubscriptionExpired(expiresAt?: string | null): boolean {
+  if (!expiresAt) return false;
+  return new Date(expiresAt).getTime() < Date.now();
+}
+
+export function getEffectiveStatus(sub: { status: string; expiresAt?: string | null }): string {
+  if (sub.status === "active" && isSubscriptionExpired(sub.expiresAt)) {
+    return "expired";
+  }
+  return sub.status;
+}
 
 const StatusIcon = ({ status }: { status: string }) => {
   if (status === "active") return <CheckCircle2 size={13} className="text-emerald-600" />;
   if (status === "canceled") return <XCircle size={13} className="text-red-500" />;
+  if (status === "expired") return <Clock size={13} className="text-amber-500" />;
   return <Clock size={13} className="text-amber-500" />;
 };
 
@@ -97,7 +112,12 @@ export default function SubscriptionsPage() {
     setError(null);
     Promise.all([fetchSubscriptions(), fetchBundles(), fetchProducts()])
       .then(([subs, buns, prods]) => {
-        setSubscriptions(subs);
+        // Subscriptions table strictly displays commercial/paid customer commitments
+        const paidSubs = (subs || []).filter((s: Subscription) => 
+          (s.amount != null && s.amount > 0) || 
+          (s.productName && !s.productName.toLowerCase().includes('free'))
+        );
+        setSubscriptions(paidSubs);
         setBundles(buns);
         setProducts(prods);
       })
@@ -177,11 +197,12 @@ export default function SubscriptionsPage() {
     } catch { toast.error("Failed to delete bundle"); }
   };
 
+  const activeSubs = subscriptions.filter(s => getEffectiveStatus(s) === "active");
   const stats = {
     total: subscriptions.length,
-    active: subscriptions.filter(s => s.status === "active").length,
-    // Revenue: sum of actual subscription amounts (in paise → convert to rupees for display)
-    revenuePaise: subscriptions.filter(s => s.status === "active").reduce((sum, s) => {
+    active: activeSubs.length,
+    // Revenue: sum of actual active subscription amounts (in paise → convert to rupees for display)
+    revenuePaise: activeSubs.reduce((sum, s) => {
       const mo = s.billingCycle === "yearly" ? Math.round((s.amount ?? 0) / 12) : (s.amount ?? 0);
       return sum + mo;
     }, 0),
@@ -211,7 +232,7 @@ export default function SubscriptionsPage() {
       billingCycle: s.billingCycle || "—",
       amountInr: s.amount != null ? s.amount / 100 : 0,
       currency: s.currency || "INR",
-      status: s.status,
+      status: getEffectiveStatus(s),
       paymentId: s.razorpayPaymentId || "—",
       expiresAt: s.expiresAt ? new Date(s.expiresAt).toLocaleDateString() : "Never",
       createdAt: s.createdAt ? new Date(s.createdAt).toLocaleDateString() : "—",
@@ -353,15 +374,28 @@ export default function SubscriptionsPage() {
                           : <span className="text-muted-foreground text-xs">Free</span>
                         }
                       </TableCell>
-                      <TableCell>
-                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColors[sub.status] || "bg-gray-100 text-gray-600"}`}>
-                          <StatusIcon status={sub.status} />
-                          {sub.status.replace(/_/g, " ")}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {sub.expiresAt ? new Date(sub.expiresAt).toLocaleDateString() : "Never"}
-                      </TableCell>
+                      {(() => {
+                        const effStatus = getEffectiveStatus(sub);
+                        const isExpired = isSubscriptionExpired(sub.expiresAt);
+                        return (
+                          <>
+                            <TableCell>
+                              <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColors[effStatus] || "bg-gray-100 text-gray-600"}`}>
+                                <StatusIcon status={effStatus} />
+                                {effStatus.replace(/_/g, " ")}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-xs text-muted-foreground">
+                              {sub.expiresAt ? (
+                                <span className={isExpired ? "text-amber-600 font-medium" : ""}>
+                                  {new Date(sub.expiresAt).toLocaleDateString()}
+                                  {isExpired && " (Expired)"}
+                                </span>
+                              ) : "Never"}
+                            </TableCell>
+                          </>
+                        );
+                      })()}
                       <TableCell className="text-xs">
                         {sub.razorpayPaymentId
                           ? <span className="font-mono text-[10px] text-muted-foreground truncate max-w-[120px] block" title={sub.razorpayPaymentId}>{sub.razorpayPaymentId}</span>

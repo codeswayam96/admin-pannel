@@ -351,10 +351,20 @@ export async function fetchPendingCancellations() {
     return apiFetch("/admin/approvals/cancellations");
 }
 
-export async function approveCancellation(id: number, refund: boolean = false) {
+export async function approveCancellation(
+    id: number,
+    options: { refund?: boolean; refundMethod?: 'wallet' | 'original'; refundAmount?: number } | boolean = false,
+) {
+    const payload = typeof options === 'boolean'
+        ? { refund: options, refundMethod: 'wallet' }
+        : {
+            refund: options.refund ?? false,
+            refundMethod: options.refundMethod ?? 'wallet',
+            refundAmount: options.refundAmount,
+        };
     return apiFetch(`/admin/approvals/cancellations/${id}/approve`, {
         method: "POST",
-        body: JSON.stringify({ refund }),
+        body: JSON.stringify(payload),
     });
 }
 

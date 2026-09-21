@@ -29,7 +29,7 @@ const authUrl = process.env.NEXT_PUBLIC_APP_AUTH_URL || "http://localhost:3003";
 export default withCSWAuth({
     ssoUrl:       process.env.NEXT_PUBLIC_APP_AUTH_URL,
     callbackPath: "/auth/callback",
-    publicPaths:  ["/api"],     // webhook/API routes are open
+    publicPaths:  ["/api", "/auth/callback"],     // webhook/API and callback routes are open
     onRequest: (req, isAuthenticated) => {
         // Not authenticated — withCSWAuth's own redirect will handle it
         if (!isAuthenticated) return;
@@ -86,4 +86,3 @@ export const config = {
         "/((?!_next/static|_next/image|favicon.ico|api).*)",
     ],
 };
-
