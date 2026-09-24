@@ -24,6 +24,7 @@ import {
   Coins,
   Gift,
   CheckCircle,
+  Share2,
   Bell,
   Webhook,
   Key,
@@ -57,6 +58,7 @@ const navGroups = [
     items: [
       { href: '/saas-products', icon: ShoppingBag, label: 'SaaS Products' },
       { href: '/saas-products/analytics', icon: BarChart2, label: 'Product Analytics' },
+      { href: '/cross-app-grants', icon: Share2, label: 'Cross-App Grants' },
       { href: '/subscriptions', icon: CreditCard, label: 'Subscriptions' },
       { href: '/credits', icon: Coins, label: 'Credits' },
       { href: '/rewards', icon: Gift, label: 'Rewards' },

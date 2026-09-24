@@ -248,7 +248,12 @@ export function UserDeepDive({ user, onClose }: UserDeepDiveProps) {
             {initials}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="font-semibold text-foreground truncate">{user.name || '—'}</p>
+            <div className="flex items-center gap-2">
+              <p className="font-semibold text-foreground truncate">{user.name || '—'}</p>
+              <span className="font-mono text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-semibold shrink-0">
+                #{user.id}
+              </span>
+            </div>
             <p className="text-xs text-muted-foreground truncate flex items-center gap-1 mt-0.5">
               <Mail className="w-3 h-3 shrink-0" />{user.email}
             </p>
@@ -278,10 +283,15 @@ export function UserDeepDive({ user, onClose }: UserDeepDiveProps) {
               label="Joined"
               value={user.createdAt ? new Date(user.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
             />
-            <DataRow
-              label="Last Active"
-              value={user.lastActiveAt ? new Date(user.lastActiveAt).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' }) : 'Never'}
-            />
+            {(() => {
+              const effLastActive = user.lastActiveAt || (user.status === 'active' ? user.createdAt : null);
+              return (
+                <DataRow
+                  label="Last Active"
+                  value={effLastActive ? new Date(effLastActive).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' }) : 'Never'}
+                />
+              );
+            })()}
             <DataRow label="Signup Source" value={user.signupSource || 'Direct'} />
           </Section>
 

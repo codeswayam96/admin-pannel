@@ -525,3 +525,68 @@ export async function deleteChangelog(id: number) {
     });
 }
 
+// ── Cross-App Grants ──────────────────────────────────────────────────────────
+
+export interface CrossAppGrant {
+    id: number;
+    sourceFamily: string;
+    targetAppId: string;
+    featureCategory: string;
+    minSourceTier: string;
+    isActive: number;
+    description: string | null;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export async function fetchCrossAppGrants(filters?: { sourceFamily?: string; targetAppId?: string }) {
+    const params = new URLSearchParams();
+    if (filters?.sourceFamily) params.set("sourceFamily", filters.sourceFamily);
+    if (filters?.targetAppId) params.set("targetAppId", filters.targetAppId);
+    const qs = params.toString() ? `?${params.toString()}` : "";
+    return apiFetch(`/admin/cross-app-grants${qs}`);
+}
+
+export async function createCrossAppGrant(data: {
+    sourceFamily: string;
+    targetAppId: string;
+    featureCategory?: string;
+    minSourceTier?: string;
+    description?: string;
+}) {
+    return apiFetch("/admin/cross-app-grants", {
+        method: "POST",
+        body: JSON.stringify(data),
+    });
+}
+
+export async function updateCrossAppGrant(id: number, data: Partial<{
+    featureCategory: string;
+    minSourceTier: string;
+    isActive: number;
+    description: string;
+}>) {
+    return apiFetch(`/admin/cross-app-grants/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+    });
+}
+
+export async function toggleCrossAppGrant(id: number) {
+    return apiFetch(`/admin/cross-app-grants/${id}/toggle`, {
+        method: "PATCH",
+    });
+}
+
+export async function deleteCrossAppGrant(id: number) {
+    return apiFetch(`/admin/cross-app-grants/${id}`, {
+        method: "DELETE",
+    });
+}
+
+export async function seedCrossAppGrants() {
+    return apiFetch("/admin/cross-app-grants/seed", {
+        method: "POST",
+    });
+}
+

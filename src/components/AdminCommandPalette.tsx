@@ -217,15 +217,18 @@ export function AdminCommandPalette() {
         try {
           toast.loading('Fetching users...', { id: 'export-cmd' });
           const users = await fetchUsers();
-          const rows = users.map((u: any) => ({
-            id: u.id,
-            name: u.name || '—',
-            email: u.email,
-            role: u.role,
-            status: u.status || 'active',
-            lastActive: u.lastActiveAt ? new Date(u.lastActiveAt).toLocaleString() : 'Never',
-            joinedDate: u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—',
-          }));
+          const rows = users.map((u: any) => {
+            const effLastActive = u.lastActiveAt || (u.status === 'active' ? u.createdAt : null);
+            return {
+              id: u.id,
+              name: u.name || '—',
+              email: u.email,
+              role: u.role,
+              status: u.status || 'active',
+              lastActive: effLastActive ? new Date(effLastActive).toLocaleString() : 'Never',
+              joinedDate: u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—',
+            };
+          });
           exportToCSV(rows, 'users_export');
           toast.success(`Exported ${rows.length} users to CSV`, { id: 'export-cmd' });
         } catch {

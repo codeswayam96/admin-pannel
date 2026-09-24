@@ -92,11 +92,14 @@ function getInitials(name: string | null, email: string) {
 
 function getAvatarColor(id: number) { return avatarColors[id % avatarColors.length]; }
 
-function formatLastActive(date: string | null) {
-  if (!date) return "Never";
-  const d = new Date(date);
+function formatLastActive(date: string | null, status?: string, createdAt?: string | null) {
+  const effectiveDate = date || (status === "active" ? createdAt : null);
+  if (!effectiveDate) return "Never";
+  const d = new Date(effectiveDate);
+  if (isNaN(d.getTime())) return "Never";
   const now = new Date();
   const diffMs = now.getTime() - d.getTime();
+  if (diffMs < 0) return d.toLocaleDateString();
   const diffMins = Math.floor(diffMs / 60000);
   if (diffMins < 1) return "Just now";
   if (diffMins < 60) return `${diffMins}m ago`;
@@ -112,6 +115,7 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [searchBy, setSearchBy] = useState<"all" | "id" | "name" | "email">("all");
   const [roleFilter, setRoleFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sourceFilter, setSourceFilter] = useState("all");
@@ -149,7 +153,24 @@ export default function UsersPage() {
   ).sort();
 
   const filtered = users.filter((u) => {
-    const matchSearch = (u.name || "").toLowerCase().includes(search.toLowerCase()) || u.email.toLowerCase().includes(search.toLowerCase());
+    const q = search.trim().toLowerCase();
+    let matchSearch = true;
+    if (q) {
+      const cleanId = q.replace(/^#/, "");
+      if (searchBy === "id") {
+        matchSearch = String(u.id).includes(cleanId) || `#${u.id}`.toLowerCase().includes(q);
+      } else if (searchBy === "name") {
+        matchSearch = (u.name || "").toLowerCase().includes(q);
+      } else if (searchBy === "email") {
+        matchSearch = u.email.toLowerCase().includes(q);
+      } else {
+        matchSearch =
+          (u.name || "").toLowerCase().includes(q) ||
+          u.email.toLowerCase().includes(q) ||
+          String(u.id).includes(cleanId) ||
+          `#${u.id}`.toLowerCase().includes(q);
+      }
+    }
     const matchRole = roleFilter === "all" || u.role === roleFilter;
     const matchStatus = statusFilter === "all" || (u.status || "active") === statusFilter;
     const matchSource = sourceFilter === "all" || formatSource(u.signupSource) === sourceFilter;
@@ -294,16 +315,19 @@ export default function UsersPage() {
       return;
     }
 
-    const exportRows = targetUsers.map((u) => ({
-      id: u.id,
-      name: u.name || '—',
-      email: u.email,
-      role: u.role,
-      status: u.status || 'active',
-      signupSource: formatSource(u.signupSource),
-      lastActive: u.lastActiveAt ? new Date(u.lastActiveAt).toLocaleString() : 'Never',
-      joinedDate: u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—',
-    }));
+    const exportRows = targetUsers.map((u) => {
+      const effLastActive = u.lastActiveAt || (u.status === "active" ? u.createdAt : null);
+      return {
+        id: u.id,
+        name: u.name || '—',
+        email: u.email,
+        role: u.role,
+        status: u.status || 'active',
+        signupSource: formatSource(u.signupSource),
+        lastActive: effLastActive ? new Date(effLastActive).toLocaleString() : 'Never',
+        joinedDate: u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—',
+      };
+    });
 
     if (format === 'csv') {
       exportToCSV(exportRows, 'users_export', [
@@ -430,9 +454,35 @@ export default function UsersPage() {
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
-        <div className="relative flex-1 max-w-sm">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input placeholder="Search by name or email..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <div className="flex flex-1 sm:max-w-md items-center gap-2">
+          <div className="relative flex-1">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder={
+                searchBy === "id"
+                  ? "Search by User ID (e.g. 5 or #5)..."
+                  : searchBy === "name"
+                  ? "Search by name..."
+                  : searchBy === "email"
+                  ? "Search by email..."
+                  : "Search by name, email, or ID..."
+              }
+              className="pl-9"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <Select value={searchBy} onValueChange={(val) => setSearchBy(val as any)}>
+            <SelectTrigger className="w-[125px] shrink-0">
+              <SelectValue placeholder="Search by" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Fields</SelectItem>
+              <SelectItem value="id">User ID</SelectItem>
+              <SelectItem value="name">Name</SelectItem>
+              <SelectItem value="email">Email</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <Select value={roleFilter} onValueChange={setRoleFilter}>
           <SelectTrigger className="w-[150px]"><SelectValue placeholder="All Roles" /></SelectTrigger>
@@ -530,6 +580,7 @@ export default function UsersPage() {
                     )}
                   </button>
                 </TableHead>
+                <TableHead className="w-16">ID</TableHead>
                 <TableHead>User</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead>Status</TableHead>
@@ -542,7 +593,7 @@ export default function UsersPage() {
             <TableBody>
               {paginated.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
+                  <TableCell colSpan={9} className="text-center py-12 text-muted-foreground">
                     No users found
                   </TableCell>
                 </TableRow>
@@ -563,6 +614,9 @@ export default function UsersPage() {
                         <button className="flex items-center justify-center">
                           {isSelected ? <CheckSquare2 size={16} className="text-violet-600" /> : <Square size={16} className="text-muted-foreground" />}
                         </button>
+                      </TableCell>
+                      <TableCell className="font-mono text-xs font-semibold text-muted-foreground whitespace-nowrap">
+                        #{user.id}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-3">
@@ -593,7 +647,7 @@ export default function UsersPage() {
                         </span>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
-                        <span className="flex items-center gap-1"><Clock size={12} />{formatLastActive(user.lastActiveAt)}</span>
+                        <span className="flex items-center gap-1"><Clock size={12} />{formatLastActive(user.lastActiveAt, user.status, user.createdAt)}</span>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         <span className="flex items-center gap-1"><Calendar size={12} />{user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "—"}</span>

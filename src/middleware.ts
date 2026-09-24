@@ -27,6 +27,7 @@ function escapeHtml(str: string): string {
 const authUrl = process.env.NEXT_PUBLIC_APP_AUTH_URL || "http://localhost:3003";
 
 export default withCSWAuth({
+    appName:      "Admin Panel",
     ssoUrl:       process.env.NEXT_PUBLIC_APP_AUTH_URL,
     callbackPath: "/auth/callback",
     publicPaths:  ["/api", "/auth/callback"],     // webhook/API and callback routes are open
